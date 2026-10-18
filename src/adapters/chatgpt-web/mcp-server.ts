@@ -381,7 +381,8 @@ export function transportBoundRawExecProgram(input: string, blockedExecName: str
     // Parse caller source as a separate function body, so closing braces cannot escape the
     // guarded tools parameter and resolve the original registry in this program's scope.
     "const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;",
-    `const run = new AsyncFunction("tools", "ALL_TOOLS", "text", "image", "audio", "generatedImage", ${JSON.stringify(input)});`,
+    // Function constructors do not inherit the native module's strict mode.
+    `const run = new AsyncFunction("tools", "ALL_TOOLS", "text", "image", "audio", "generatedImage", ${JSON.stringify('"use strict";\n' + input)});`,
     "await run((() => {",
     "  const source = tools;",
     `  const waitNames = new Set(${JSON.stringify([...GATEWAY_AGENT_WAIT_TOOL_NAMES])});`,

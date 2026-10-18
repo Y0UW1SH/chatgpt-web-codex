@@ -15,7 +15,7 @@ async function execute(input: string) {
     ...args: string[]
   ) => (...values: unknown[]) => Promise<void>;
   const run = new AsyncFunction("tools", "ALL_TOOLS", "text", "image", "audio", "generatedImage",
-    transportBoundRawExecProgram(input, "exec"));
+    '"use strict";\n' + transportBoundRawExecProgram(input, "exec"));
   const emit = (value: unknown) => { output.push(value); };
   return {
     calls,
@@ -42,6 +42,32 @@ test("raw exec preserves ordinary tools, asynchronous code and output helpers", 
   await execution.result;
   expect(execution.calls).toEqual([{ name: "web__run", input: { query: "Codex" } }]);
   expect(execution.output).toEqual([{ name: "web__run", input: { query: "Codex" } }]);
+});
+
+test("raw exec preserves module strictness for top-level this", async () => {
+  const execution = await execute("text(this === undefined);");
+
+  await execution.result;
+  expect(execution.output).toEqual([true]);
+});
+
+test("raw exec rejects undeclared assignments without leaking globals", async () => {
+  const key = "__cgw_raw_exec_undeclared_regression__";
+  expect(Object.hasOwn(globalThis, key)).toBe(false);
+  try {
+    const execution = await execute(`${key} = 1;`);
+    await expect(execution.result).rejects.toBeInstanceOf(ReferenceError);
+    expect(Object.hasOwn(globalThis, key)).toBe(false);
+  } finally {
+    Reflect.deleteProperty(globalThis, key);
+  }
+});
+
+test("raw exec rejects writes to the protected tool registry instead of silently ignoring them", async () => {
+  const execution = await execute("tools.web__run = async () => 'overwritten'; await tools.web__run({});");
+
+  await expect(execution.result).rejects.toBeInstanceOf(TypeError);
+  expect(execution.calls).toEqual([]);
 });
 
 test("raw exec allows only the exact wait polling interval", async () => {
