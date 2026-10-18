@@ -591,16 +591,6 @@ export function bridgeToResponsesSSE(
               // Redacted-only turns (or hidden thinking without a trailing signature event) still
               // need their envelope-only reasoning item so the blocks replay next turn.
               flushHiddenReasoningEnvelope();
-              if (options?.compaction) {
-                // Exactly one compaction item per turn; codex-rs takes the first and fatals on 0.
-                const item = {
-                  type: "compaction", id: `cmp_${uuid()}`,
-                  encrypted_content: encodeCompactionSummary(compactionText),
-                };
-                emit("response.output_item.done", { output_index: outputIndex, item });
-                finishedItems.push(item as OutputItem);
-                outputIndex++;
-              }
               if (event.stopReason === "max_tokens" || event.stopReason === "content_filter") {
                 // Upstream stopped before a normal completion. Surface as incomplete so the
                 // client can distinguish a truncated/filtered turn from a finished one.
@@ -617,6 +607,16 @@ export function bridgeToResponsesSSE(
                 emit("response.incomplete", { response });
                 reportTerminal("incomplete");
               } else {
+                if (options?.compaction) {
+                  // Only an authoritative completion can supply replacement history.
+                  const item = {
+                    type: "compaction", id: `cmp_${uuid()}`,
+                    encrypted_content: encodeCompactionSummary(compactionText),
+                  };
+                  emit("response.output_item.done", { output_index: outputIndex, item });
+                  finishedItems.push(item as OutputItem);
+                  outputIndex++;
+                }
                 const response = { ...responseSnapshot("completed", finishedItems, event.endTurn), usage: responsesUsage(event.usage) };
                 options?.onCompletedResponse?.(response, event.providerState);
                 emit("response.completed", {
@@ -867,6 +867,7 @@ export function buildResponseJSON(
   let incompleteEvent: Extract<AdapterEvent, { type: "incomplete" }> | undefined;
   let endTurn: boolean | undefined;
   let stopReason: string | undefined;
+  let sawDone = false;
   let compactionText = "";
 
   let currentText = "";
@@ -1032,10 +1033,11 @@ export function buildResponseJSON(
         if (e.providerState) options?.onProviderState?.(e.providerState);
         break;
       case "done":
+        sawDone = true;
         usage = e.usage;
         endTurn = e.endTurn;
         if (e.providerState) options?.onProviderState?.(e.providerState);
-        if (e.stopReason === "max_tokens") stopReason = "max_tokens";
+        stopReason = e.stopReason;
         break;
     }
   }
@@ -1043,16 +1045,20 @@ export function buildResponseJSON(
   flushSummaryReasoning();
   flushRawReasoning();
   flushToolCall();
+  const incompleteReason = incompleteEvent?.reason
+    ?? (stopReason === "max_tokens" ? "max_output_tokens"
+      : stopReason === "content_filter" ? "content_filter"
+      : !sawDone && !errorEvent ? "adapter_eof" : undefined);
   // A truncated turn must never become replacement history. Emit a compaction item only after
   // authoritative turn completion.
-  if (options?.compaction && !errorEvent && !incompleteEvent && stopReason !== "max_tokens") {
+  if (options?.compaction && !errorEvent && incompleteReason === undefined) {
     output.push({ type: "compaction", id: `cmp_${uuid()}`, encrypted_content: encodeCompactionSummary(compactionText) });
   }
 
   const failure = errorEvent ? adapterFailureFromEvent(errorEvent) : undefined;
   const status = errorEvent
     ? "failed"
-    : incompleteEvent || stopReason === "max_tokens"
+    : incompleteReason !== undefined
       ? "incomplete"
       : "completed";
   return {
@@ -1069,8 +1075,8 @@ export function buildResponseJSON(
         ...(incompleteEvent.message ? { message: incompleteEvent.message } : {}),
         ...(incompleteEvent.retryable !== undefined ? { retryable: incompleteEvent.retryable } : {}),
       },
-    } : stopReason === "max_tokens" ? {
-      incomplete_details: { reason: "max_output_tokens" },
+    } : incompleteReason !== undefined ? {
+      incomplete_details: { reason: incompleteReason },
     } : {}),
     usage: responsesUsage(incompleteEvent?.usage ?? usage),
   };

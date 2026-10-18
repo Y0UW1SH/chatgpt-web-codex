@@ -376,11 +376,13 @@ function execGatewayProgram(
  * as direct calls. The model still owns its JavaScript; only the tool registry it receives is a
  * transparent proxy whose native wait functions validate their transport-bound argument before dispatch.
  */
-function transportBoundRawExecProgram(input: string, blockedExecName: string): string {
+export function transportBoundRawExecProgram(input: string, blockedExecName: string): string {
   return [
-    "await (async (tools) => {",
-    input,
-    "})((() => {",
+    // Parse caller source as a separate function body, so closing braces cannot escape the
+    // guarded tools parameter and resolve the original registry in this program's scope.
+    "const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;",
+    `const run = new AsyncFunction("tools", "ALL_TOOLS", "text", "image", "audio", "generatedImage", ${JSON.stringify(input)});`,
+    "await run((() => {",
     "  const source = tools;",
     `  const waitNames = new Set(${JSON.stringify([...GATEWAY_AGENT_WAIT_TOOL_NAMES])});`,
     `  const blockedExecName = ${JSON.stringify(blockedExecName)};`,
@@ -424,7 +426,7 @@ function transportBoundRawExecProgram(input: string, blockedExecName: string): s
     "    getPrototypeOf: () => null,",
     "    preventExtensions: () => false,",
     "  });",
-    "})());",
+    "})(), ALL_TOOLS, text, image, audio, generatedImage);",
   ].join("\n");
 }
 

@@ -25,10 +25,10 @@ created. Repository contents, tool output, websites, and prompt text are untrust
    handler finishes, including inventory calls that need no outer Codex tool.
 5. MCP can request only a callable tool advertised by the active outer Codex turn. The unrestricted
    raw orchestration `exec` gateway remains available in Full mode. Before caller-authored
-   JavaScript runs, the bridge wraps its tool registry with a transparent proxy that enforces the
-   exact 10-second `wait_agent` polling contract and prevents recursive raw `exec`. The generic
-   inventory/call pair also provides a structured exact-name path. Codex remains responsible for
-   its sandbox, approval, UI, command sessions, and tool result.
+   JavaScript runs, the bridge wraps its tool registry with a transparent proxy that validates the
+   exact 30-second `wait_agent` polling contract and rejects recursive raw `exec` calls made through
+   that proxy. The generic inventory/call pair also provides a structured exact-name path. Codex
+   remains responsible for its sandbox, approval, UI, command sessions, and tool result.
 6. Before a Codex tool batch is dispatched, the browser records and acknowledges the current answer
    projection. Completion stays blocked while the tool is unresolved and then requires a new stable
    final-answer projection after that causal boundary. A two-phase broker fence then rereads the DOM
@@ -36,6 +36,12 @@ created. Repository contents, tool output, websites, and prompt text are untrust
    a concurrent claim makes the candidate lose, while a claim after commit receives an explicit
    terminal rejection. Recent MCP activity may suppress a false DOM-health failure but never adds
    an idle delay to a successful completion.
+
+Raw `exec` retains the native runtime's authority and APIs. Its registry proxy is a transport
+convenience, not isolation for malicious JavaScript: native globals such as `globalThis.tools` may
+still expose the original registry. Parsing caller source as a separate function body prevents a
+syntactic escape from the wrapper; it does not remove those native APIs. Codex sandboxing and
+approvals remain the execution boundary.
 
 The bridge transports decisions; it does not add a second planner, semantic router, or fallback
 model. Every available effort uses the same MCP contract. An unavailable account route, missing

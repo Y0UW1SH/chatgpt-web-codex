@@ -1,6 +1,45 @@
 import { expect, spyOn, test } from "bun:test";
 import { forwardNativeCodexRequest } from "../src/native-passthrough";
+import { brotliCompressSync, gzipSync } from "node:zlib";
 import { SUMMARY_PREFIX } from "../src/responses/compaction";
+
+for (const encoding of ["gzip", "br"] as const) {
+  test(`native passthrough removes stale ${encoding} encoding after fetch decompression`, async () => {
+    const json = JSON.stringify({ output: [], results: [], models: [] });
+    const sse = 'data: {"type":"response.completed"}\n\ndata: [DONE]\n\n';
+    const upstream = Bun.serve({
+      hostname: "127.0.0.1", port: 0,
+      fetch(request) {
+        const streaming = new URL(request.url).pathname.endsWith("/responses");
+        const text = streaming ? sse : json;
+        const compressed = encoding === "gzip" ? gzipSync(text) : brotliCompressSync(text);
+        return new Response(compressed, { headers: {
+          "content-type": streaming ? "text/event-stream" : "application/json",
+          "content-encoding": encoding,
+          "content-length": String(compressed.byteLength),
+        } });
+      },
+    });
+    try {
+      for (const endpoint of ["responses", "responses/compact", "alpha/search", "models", "images/generations"] as const) {
+        const request = new Request(`http://127.0.0.1/v1/${endpoint}`, {
+          method: endpoint === "models" ? "GET" : "POST",
+          headers: { authorization: "Bearer test-fixture" },
+          ...(endpoint === "models" ? {} : { body: JSON.stringify({ model: "gpt-test", input: [] }) }),
+        });
+        const response = await forwardNativeCodexRequest(request, endpoint, forwarded => fetch(
+          new URL(endpoint, upstream.url),
+          { signal: forwarded.signal },
+        ));
+        expect(response.headers.get("content-encoding")).toBeNull();
+        expect(response.headers.get("content-length")).toBeNull();
+        expect(await response.text()).toBe(endpoint === "responses" ? sse : json);
+      }
+    } finally {
+      upstream.stop(true);
+    }
+  });
+}
 
 test("forwards native Codex requests verbatim to the official backend", async () => {
   const originalBody = Bun.zstdCompressSync(Buffer.from('{"model":"gpt-5.6-sol","stream":true}'));

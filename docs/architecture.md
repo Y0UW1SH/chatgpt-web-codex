@@ -245,7 +245,7 @@ native and routed Web backends:
   a routed child can spawn a routed grandchild. The integration journal preserves the user's prior
   scalar, structured-feature, and agent-depth lines and restores them byte-for-byte on disconnect,
   native-mode selection, or uninstall. The ChatGPT connector projects `wait_agent` as an explicit
-  10-second polling contract: terminal semantics stay native, while every non-terminal poll releases
+  30-second polling contract: terminal semantics stay native, while every non-terminal poll releases
   the serialized MCP channel so Web children can run their own harness tools.
 - **Native** preserves every official native row and gives routed rows the selected template's
   protocol surface. Under MultiAgent V2, Web-origin `spawn_agent`, `send_message`, and
