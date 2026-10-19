@@ -792,7 +792,7 @@ export async function responseRequest(
     } catch (error) {
       const event: AdapterEvent = { type: "error", message: error instanceof Error ? error.message : String(error) };
       options.onAdapterEvent?.(event);
-      queue.push(event);
+      queue.close(event);
     } finally {
       queue.close();
     }
@@ -829,8 +829,11 @@ export async function responseRequest(
     });
   }
 
+  // Unary replies still consume the live adapter feed. Waiting for the producer to finish
+  // before draining would turn the queue's transient backlog limit into an output-size limit.
+  const collected = queue.collect();
   await run();
-  const events = await queue.collect();
+  const events = await collected;
   const json = buildResponseJSON(events, responseModel, {
     hideThinkingSummary: parsed.options.hideThinkingSummary,
     toolNsMap: maps.toolNsMap,

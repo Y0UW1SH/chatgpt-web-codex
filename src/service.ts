@@ -264,6 +264,19 @@ export async function assertServiceIdle(config: AppConfig): Promise<void> {
   await lease.release();
 }
 
+/** Keep the current daemon idle until a dependent runtime mutation has finished. */
+export async function withServiceDrain<T>(config: AppConfig, operation: () => Promise<T>): Promise<T> {
+  const lease = await acquireDrain(config);
+  let result: T;
+  try {
+    result = await operation();
+  } catch (error) {
+    return releaseDrainAfterFailure(lease, error);
+  }
+  await lease.release();
+  return result;
+}
+
 export async function restartService(config: AppConfig): Promise<ServiceStatus> {
   assertMacOs();
   if (!getServiceStatus().loaded) return startService();

@@ -74,11 +74,20 @@ for stale in "$FALLBACK_ROOT"/run.*; do
   fi
 done
 
-RUN_DIR="$(mktemp -d "$FALLBACK_ROOT/run.XXXXXX")"
+# Publish a run.* directory only after its owner identity is complete. A second
+# launcher may run stale cleanup while this process is still initializing.
+INITIALIZING_DIR="$(mktemp -d "$FALLBACK_ROOT/init.XXXXXX")"
+RUN_DIR="$FALLBACK_ROOT/run.$$.${INITIALIZING_DIR##*.}"
+RUN_PUBLISHED=false
 cleanup() {
-  case "$RUN_DIR" in
-    "$FALLBACK_ROOT"/run.*) rm -rf -- "$RUN_DIR" ;;
+  case "$INITIALIZING_DIR" in
+    "$FALLBACK_ROOT"/init.*) rm -rf -- "$INITIALIZING_DIR" ;;
   esac
+  if [ "$RUN_PUBLISHED" = true ]; then
+    case "$RUN_DIR" in
+      "$FALLBACK_ROOT"/run.*) rm -rf -- "$RUN_DIR" ;;
+    esac
+  fi
 }
 trap cleanup EXIT
 trap 'exit 129' HUP
@@ -88,7 +97,9 @@ OWNER_START="$(sed 's/^[^)]*) //' "/proc/$$/stat" 2>/dev/null | awk 'NR == 1 { p
 case "$OWNER_START" in
   ''|*[!0-9]*) echo "Could not establish AppImage fallback process identity" >&2; exit 70 ;;
 esac
-printf '%s %s\n' "$$" "$OWNER_START" > "$RUN_DIR/owner.pid"
+printf '%s %s\n' "$$" "$OWNER_START" > "$INITIALIZING_DIR/owner.pid"
+mv -T "$INITIALIZING_DIR" "$RUN_DIR"
+RUN_PUBLISHED=true
 
 mkdir "$RUN_DIR/unpack"
 (

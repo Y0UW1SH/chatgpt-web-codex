@@ -1968,12 +1968,22 @@ class RuntimeSupervisor {
     }
     let drained = false;
     let tunnelStopped = false;
+    let recoveringStaleRuntime = false;
     try {
       const ownershipState = this.readState();
       const healthyRuntime = config && this.launcherProfile !== "development"
         ? await this.proxyHealth(config)
         : false;
       const runtimeMayBeLive = healthyRuntime || runtimeOwnershipMayBeLive(ownershipState);
+      if (config && !this.daemon && !this.tunnel && runtimeMayBeLive) {
+        // Reconcile the complete stale owner before adopting one of its processes. Adopting
+        // only the tunnel would skip the daemon drain and the live-launcher ownership guard.
+        recoveringStaleRuntime = true;
+        if (!await this.stopStaleOwnedRuntime(config)) {
+          throw new Error("an existing runtime could not be safely recovered");
+        }
+        return { status: "stopped" };
+      }
       if (config?.mode === "full"
         && !this.tunnel
         && (runtimeMayBeLive || !ownershipState)) {
@@ -2045,7 +2055,8 @@ class RuntimeSupervisor {
           restoredReady = false;
         }
       }
-      this.tryWriteState(restoredReady ? "ready" : "failed", message);
+      // A rejected stale-owner recovery must retain the original PIDs and owner evidence.
+      if (!recoveringStaleRuntime) this.tryWriteState(restoredReady ? "ready" : "failed", message);
       throw new Error(message);
     } finally {
       this.stopping = false;

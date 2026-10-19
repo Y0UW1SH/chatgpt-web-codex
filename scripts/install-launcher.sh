@@ -114,8 +114,47 @@ RUNNING_PID=""
 if [ -f "$DESCRIPTOR" ]; then
   RUNNING_PID="$(sed -n 's/.*"pid"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$DESCRIPTOR" | head -n 1)"
 fi
-if { [ -n "$RUNNING_PID" ] && kill -0 "$RUNNING_PID" 2>/dev/null; } \
-  || pgrep -f "Codex Web GPT\\.AppImage" >/dev/null 2>&1; then
+if [ -n "$RUNNING_PID" ] && kill -0 "$RUNNING_PID" 2>/dev/null; then
+  # Old launchers do not advertise this capability. Keep their conservative
+  # PID check because their mounted/extracted executable may not name AppImage.
+  CONTROL="$(tr '\r\n' '  ' < "$DESCRIPTOR" \
+    | sed -n 's/.*"control"[[:space:]]*:[[:space:]]*{\([^}]*\)}.*/\1/p')"
+  if ! printf '%s\n' "$CONTROL" | grep -Eq '"identityPath"[[:space:]]*:'; then
+    echo "Quit Codex Web GPT before updating it" >&2
+    exit 1
+  fi
+  IDENTITY_PATH="$(printf '%s\n' "$CONTROL" | sed -n 's/.*"identityPath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  CONTROL_ENDPOINT="$(printf '%s\n' "$CONTROL" | sed -n 's/.*"endpoint"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  CONTROL_TOKEN="$(printf '%s\n' "$CONTROL" | sed -n 's/.*"token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  if [ "$IDENTITY_PATH" != "/v1/identity" ] \
+    || ! printf '%s\n' "$CONTROL_ENDPOINT" | grep -Eq '^http://127\.0\.0\.1:[1-9][0-9]{0,4}$' \
+    || [ "${CONTROL_ENDPOINT##*:}" -gt 65535 ] \
+    || ! printf '%s\n' "$CONTROL_TOKEN" | grep -Eq '^[A-Za-z0-9_-]{40,128}$'; then
+    echo "Cannot verify launcher identity; quit Codex Web GPT before updating it" >&2
+    exit 1
+  fi
+  IDENTITY_RESPONSE="$TEMP_DIR/launcher-identity.json"
+  PROBE_STATUS=0
+  # Disable user curl settings, proxies and redirects. The private bearer token
+  # travels over stdin rather than appearing in curl's process arguments.
+  HTTP_STATUS="$(printf 'header = "Authorization: Bearer %s"\n' "$CONTROL_TOKEN" \
+    | curl -q --silent --show-error --no-location --noproxy 127.0.0.1 \
+      --connect-timeout 2 --max-time 3 --config - \
+      --output "$IDENTITY_RESPONSE" --write-out '%{http_code}' \
+      "$CONTROL_ENDPOINT$IDENTITY_PATH" 2>/dev/null)" || PROBE_STATUS="$?"
+  if [ "$PROBE_STATUS" -eq 0 ] && [ "$HTTP_STATUS" = 200 ] \
+    && grep -Eq '^[[:space:]]*\{[[:space:]]*"kind"[[:space:]]*:[[:space:]]*"codex-web-gpt-launcher"[[:space:]]*,[[:space:]]*"pid"[[:space:]]*:[[:space:]]*'"$RUNNING_PID"'[[:space:]]*\}[[:space:]]*$' "$IDENTITY_RESPONSE"; then
+    echo "Quit Codex Web GPT before updating it" >&2
+    exit 1
+  fi
+  if [ "$PROBE_STATUS" -ne 7 ]; then
+    echo "Cannot verify launcher identity; quit Codex Web GPT before updating it" >&2
+    exit 1
+  fi
+  # A refused loopback connection means the recorded launcher is gone, even if
+  # its PID has since been reused by an unrelated process.
+fi
+if pgrep -f "Codex Web GPT\\.AppImage" >/dev/null 2>&1; then
   echo "Quit Codex Web GPT before updating it" >&2
   exit 1
 fi
@@ -172,19 +211,23 @@ APPLICATIONS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 ICON_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/512x512/apps"
 mkdir -p "$APPLICATIONS_DIR" "$ICON_DIR"
 install -m 0644 "$ICON_SOURCE" "$ICON_DIR/codex-web-gpt.png"
+# Quote the Exec argument, then escape it for the desktop entry's string parser.
 DESKTOP_WRAPPER="$(printf '%s' "$WRAPPER" | sed \
   -e 's/\\/\\\\/g' \
   -e 's/"/\\"/g' \
   -e 's/`/\\`/g' \
   -e 's/\$/\\$/g' \
+  -e 's/\\/\\\\/g' \
   -e 's/%/%%/g')"
+# A fixed executable lets desktop launchers expand %% in the wrapper argument
+# before checking its path, including install directories containing percent.
 cat > "$APPLICATIONS_DIR/codex-web-gpt.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Version=1.0
 Name=Codex Web GPT
 Comment=ChatGPT Web models inside the native Codex harness
-Exec="$DESKTOP_WRAPPER"
+Exec=/bin/sh "$DESKTOP_WRAPPER"
 Icon=codex-web-gpt
 Terminal=false
 Categories=Development;

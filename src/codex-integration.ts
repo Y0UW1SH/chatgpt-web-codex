@@ -458,6 +458,7 @@ export function activateCodexIntegration(options: { recoveryOnly?: boolean } = {
 export function uninstallCodexIntegration(): UninstallCodexIntegrationResult {
   const journal = readJournal();
   if (!journal) return { changed: false };
+  assertJournalTargetsConfig(journal, getCodexConfigPath());
   if (!existsSync(journal.configPath)) throw new Error(`Codex config is missing: ${journal.configPath}`);
   const current = readFileSync(journal.configPath, "utf8");
   let restored: string;

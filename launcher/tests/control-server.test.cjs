@@ -3,6 +3,27 @@ const assert = require("node:assert/strict");
 const { BrowserHost } = require("../electron/browser-host.cjs");
 const { BrowserControlServer } = require("../electron/control-server.cjs");
 
+test("launcher identity is authenticated without accessing browser state or preferences", async () => {
+  const server = await new BrowserControlServer({
+    logger: { info() {}, warn() {}, error() {} },
+    getBrowserHost: () => { throw new Error("identity must work before browser startup and in manual mode"); },
+    getPreferences: () => { throw new Error("identity must not depend on integration mode"); },
+  }).start();
+  const { endpoint, token } = server.descriptor();
+  try {
+    assert.equal((await fetch(`${endpoint}/v1/identity`)).status, 401);
+    assert.equal((await fetch(`${endpoint}/v1/identity`, { headers: { authorization: "Bearer wrong-token" } })).status, 401);
+    const response = await fetch(`${endpoint}/v1/identity`, { headers: { authorization: `Bearer ${token}` } });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { kind: "codex-web-gpt-launcher", pid: process.pid });
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(server.descriptor().identityPath, "/v1/identity");
+    assert.equal((await fetch(`${endpoint}/v1/identity`, {
+      method: "POST", headers: { authorization: `Bearer ${token}` },
+    })).status, 404);
+  } finally { await server.close(); }
+});
+
 test("live task progress is owner-bound, preserves elapsed time, and clears on release", async () => {
   const tab = { id: "task-one", traceId: "trace-one", helperPid: process.pid, status: "running", interactionMode: "automatic" };
   const other = { ...tab, id: "task-two", traceId: "trace-two", helperPid: process.pid + 1 };

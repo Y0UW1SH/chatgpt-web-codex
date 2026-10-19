@@ -306,6 +306,7 @@ export class LauncherBrowserHelperClient {
 
   async close(): Promise<void> {
     const child = this.child;
+    this.readyReject?.(new DOMException("Launcher browser helper is closing", "AbortError"));
     this.child = undefined;
     this.ready = undefined;
     this.readyResolve = undefined;
@@ -662,6 +663,9 @@ export class LauncherBrowserHelperClient {
     for (const id of [...this.pending.keys()]) {
       const pending = this.pending.get(id);
       if (!pending) continue;
+      const finishOwnedTurn = (failure: Error) => {
+        if (this.pending.get(id) === pending) this.finishWithError(id, failure);
+      };
       void notifyLauncherTurn(this.config.browserHostDescriptorPath!, {
         phase: "end",
         traceId: id,
@@ -669,9 +673,8 @@ export class LauncherBrowserHelperClient {
         status: "failed",
         message: "Launcher browser helper exited before completing the turn",
       }).then(
-        () => this.finishWithError(id, pending.localFailure ?? error),
-        controlError => this.finishWithError(
-          id,
+        () => finishOwnedTurn(pending.localFailure ?? error),
+        controlError => finishOwnedTurn(
           new AggregateError(
             [pending.localFailure ?? error, controlError instanceof Error ? controlError : new Error(String(controlError))],
             `Launcher browser helper exited and failed to release turn ${id}`,

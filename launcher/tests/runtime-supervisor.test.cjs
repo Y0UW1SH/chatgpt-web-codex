@@ -1323,6 +1323,98 @@ test("launcher shutdown reacquires a managed tunnel that was between monitor and
   }
 });
 
+for (const liveOwner of [false, true]) {
+  test(`full-runtime shutdown preserves stale ownership when ${liveOwner ? "another launcher owns it" : "a browser turn is active"}`, async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-web-gpt-full-stale-stop-"));
+    const supervisor = new RuntimeSupervisor({
+      app: { getVersion: () => "0.2.0", isPackaged: false },
+      logger: { info() {}, warn() {}, error() {} },
+      sourceRoot: root,
+      coreHome: root,
+      browserDescriptorPath: path.join(root, "launcher.json"),
+    });
+    const config = { mode: "full", releaseVersion: "0.2.0", tunnel: { alias: "codex-chatgpt-web" } };
+    const staleState = {
+      version: 1,
+      ownerPid: liveOwner ? process.ppid : 999_999_999,
+      daemonPid: process.pid,
+      tunnelPid: null,
+      status: "ready",
+      updatedAt: new Date().toISOString(),
+    };
+    fs.mkdirSync(path.dirname(supervisor.statePath), { recursive: true });
+    fs.writeFileSync(supervisor.statePath, `${JSON.stringify(staleState)}\n`);
+    const actions = [];
+    supervisor.readConfig = () => config;
+    supervisor.proxyHealth = async () => true;
+    supervisor.proxyHealthPayload = async () => ({
+      service: "codex-chatgpt-web", mode: "full", version: "0.2.0", pid: process.pid,
+    });
+    supervisor.waitForKnownTunnelStatus = async () => ({
+      ready: true, pid: null, state: "ready", processRunning: true, statusKnown: true, detail: "ready",
+    });
+    supervisor.acquireDrain = async () => {
+      actions.push("drain");
+      throw new Error("daemon has 0 active HTTP turn(s) and 1 active browser turn(s)");
+    };
+    supervisor.runTunnelStopCommand = async () => {
+      actions.push("stop tunnel");
+      return { code: 0 };
+    };
+    supervisor.waitForTunnelStopped = async () => {};
+    try {
+      await assert.rejects(supervisor.stopForSetup(), liveOwner ? /Another launcher process/ : /1 active browser turn/);
+      assert.deepEqual(actions, liveOwner ? [] : ["drain"]);
+      assert.deepEqual(JSON.parse(fs.readFileSync(supervisor.statePath, "utf8")), staleState);
+      assert.equal(supervisor.daemon, null);
+      assert.equal(supervisor.tunnel, null);
+    } finally {
+      supervisor.stopTunnelMonitor();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
+test("full-runtime shutdown drains and stops a stale daemon before clearing its ownership", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-web-gpt-full-stale-idle-stop-"));
+  const supervisor = new RuntimeSupervisor({
+    app: { getVersion: () => "0.2.0", isPackaged: false },
+    logger: { info() {}, warn() {}, error() {} },
+    sourceRoot: root,
+    coreHome: root,
+    browserDescriptorPath: path.join(root, "launcher.json"),
+  });
+  const config = { mode: "full", releaseVersion: "0.2.0", tunnel: { alias: "codex-chatgpt-web" } };
+  fs.mkdirSync(path.dirname(supervisor.statePath), { recursive: true });
+  fs.writeFileSync(supervisor.statePath, `${JSON.stringify({
+    version: 1, ownerPid: 999_999_999, daemonPid: process.pid, tunnelPid: null,
+    status: "ready", updatedAt: new Date().toISOString(),
+  })}\n`);
+  const actions = [];
+  supervisor.readConfig = () => config;
+  supervisor.proxyHealth = async () => true;
+  supervisor.proxyHealthPayload = async () => ({
+    service: "codex-chatgpt-web", mode: "full", version: "0.2.0", pid: process.pid,
+  });
+  supervisor.waitForKnownTunnelStatus = async () => ({
+    ready: true, pid: null, state: "ready", processRunning: true, statusKnown: true, detail: "ready",
+  });
+  supervisor.acquireDrain = async () => { actions.push("drain"); return true; };
+  supervisor.control = async (_config, action) => { actions.push(action); return { status: "ok" }; };
+  supervisor.waitForProcessExit = async () => { actions.push("daemon exited"); };
+  supervisor.waitForPortRelease = async () => { actions.push("port released"); };
+  supervisor.runTunnelStopCommand = async () => { actions.push("stop tunnel"); return { code: 0 }; };
+  supervisor.waitForTunnelStopped = async () => {};
+  try {
+    assert.deepEqual(await supervisor.stopForSetup(), { status: "stopped" });
+    assert.deepEqual(actions, ["drain", "shutdown", "daemon exited", "port released", "stop tunnel"]);
+    assert.equal(fs.existsSync(supervisor.statePath), false);
+  } finally {
+    supervisor.stopTunnelMonitor();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("crash-loop diagnostics include the last redacted child failure", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-web-gpt-crash-loop-diagnostic-"));
   const operations = [];

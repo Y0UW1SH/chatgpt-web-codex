@@ -134,6 +134,41 @@ describe("reversible native Codex route integration", () => {
     expect(getCodexHome()).toBe(join(homedir(), "custom-codex-home"));
   });
 
+  test("uninstall refuses a journal from another Codex home without changing either home", () => {
+    const { root, codexHome } = fixture();
+    const original = 'model = "gpt-5.6-sol"\n';
+    const configPath = join(codexHome, "config.toml");
+    writeFileSync(configPath, original);
+    installCodexIntegration(nativeConfig("browser-only"));
+    const installed = readFileSync(configPath, "utf8");
+    const journal = readFileSync(getCodexJournalPath(), "utf8");
+    const recovery = readFileSync(getCodexJournalRecoveryPath(), "utf8");
+    const installedCache = join(codexHome, "models_cache.json");
+    writeFileSync(installedCache, "installed-home cache");
+
+    const otherHome = join(root, "other-codex");
+    mkdirSync(otherHome);
+    const otherConfig = join(otherHome, "config.toml");
+    const otherCache = join(otherHome, "models_cache.json");
+    writeFileSync(otherConfig, 'model = "other-model"\n');
+    writeFileSync(otherCache, "other-home cache");
+    process.env.CODEX_HOME = otherHome;
+
+    expect(() => uninstallCodexIntegration()).toThrow("not the active config");
+    expect(readFileSync(configPath, "utf8")).toBe(installed);
+    expect(readFileSync(installedCache, "utf8")).toBe("installed-home cache");
+    expect(readFileSync(otherConfig, "utf8")).toBe('model = "other-model"\n');
+    expect(readFileSync(otherCache, "utf8")).toBe("other-home cache");
+    expect(readFileSync(getCodexJournalPath(), "utf8")).toBe(journal);
+    expect(readFileSync(getCodexJournalRecoveryPath(), "utf8")).toBe(recovery);
+
+    process.env.CODEX_HOME = codexHome;
+    expect(uninstallCodexIntegration()).toEqual({ changed: true });
+    expect(readFileSync(configPath, "utf8")).toBe(original);
+    expect(existsSync(installedCache)).toBe(false);
+    expect(readFileSync(otherCache, "utf8")).toBe("other-home cache");
+  });
+
   test("reads an explicit native context override without requiring a selected model", () => {
     const { codexHome } = fixture();
     writeFileSync(

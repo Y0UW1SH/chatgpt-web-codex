@@ -37,6 +37,7 @@ import {
   removeLegacyRuntimeArtifacts,
   restartService,
   uninstallService,
+  withServiceDrain,
 } from "./service";
 import { connectTunnel, createTunnelConfig, installRuntimeKey, installRuntimeKeyBytes, installTunnelClient, managedRuntimeKeyPath, stopTunnel, waitForTunnelReady } from "./tunnel";
 import { getTunnelServiceStatus, installTunnelService, restartTunnelService, stopTunnelService, tunnelServiceDefinitionMatches, uninstallTunnelService } from "./tunnel-service";
@@ -630,6 +631,10 @@ export async function setup(options: SetupOptions): Promise<SetupResult> {
     await waitForProxy(config);
   }
 
+  // Stop the old accepting daemon before dismantling its tunnel during launcher migration.
+  if (launcherOwned && (beforeService.installed || beforeService.loaded)) {
+    await uninstallService(existing!);
+  }
   let tunnelReady: boolean | null = null;
   if (config.mode === "browser-only" && existing?.mode === "full") {
     const previousTunnelService = getTunnelServiceStatus();
@@ -646,22 +651,22 @@ export async function setup(options: SetupOptions): Promise<SetupResult> {
       // profile, proves readiness/MCP health, and cleans up failed startup under one owner.
     } else {
       const needsOwnershipMigration = !tunnelService.installed || !tunnelService.loaded || !tunnelServiceDefinitionMatches(config);
-      if (needsOwnershipMigration || needsProfile) {
-        await assertServiceIdle(config);
-        if (tunnelService.loaded) await stopTunnelService();
-        await bootstrapTunnelProfile(config);
-        installTunnelService(config);
-      } else if (refreshTunnelWorker) {
-        await assertServiceIdle(config);
-        await restartTunnelService();
-      }
-      const status = await waitForTunnelReady(config);
-      if (!status.ok) throw new Error(`Tunnel runtime did not become healthy and ready: ${status.detail}`);
+      const updateTunnel = async () => {
+        if (needsOwnershipMigration || needsProfile) {
+          if (tunnelService.loaded) await stopTunnelService();
+          await bootstrapTunnelProfile(config);
+          installTunnelService(config);
+        } else if (refreshTunnelWorker) {
+          await restartTunnelService();
+        }
+        const status = await waitForTunnelReady(config);
+        if (!status.ok) throw new Error(`Tunnel runtime did not become healthy and ready: ${status.detail}`);
+      };
+      if (needsOwnershipMigration || needsProfile || refreshTunnelWorker) {
+        await withServiceDrain(config, updateTunnel);
+      } else await updateTunnel();
       tunnelReady = true;
     }
-  }
-  if (launcherOwned && (beforeService.installed || beforeService.loaded)) {
-    await uninstallService(existing!);
   }
   if (launcherOwned) saveConfig(config);
   // Keep the previous terminal runtime intact through the ownership handoff. A later launcher
