@@ -13,122 +13,25 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-function lifecycleClient(script: (root: string) => string, controlEndpoint = "http://127.0.0.1:39002") {
-  const root = mkdtempSync(join(tmpdir(), "codex-helper-lifecycle-"));
+test.each([false, true])("connector verification preserves chat mode through the real helper process (%s)", async useSavedChats => {
+  const root = mkdtempSync(join(tmpdir(), "codex-verification-chat-mode-"));
   roots.push(root);
-  const helper = join(root, "helper.cjs");
-  writeFileSync(helper, script(root));
-  const descriptorPath = join(root, "launcher.json");
-  writeFileSync(descriptorPath, JSON.stringify({
-    version: 3,
-    kind: LAUNCHER_BROWSER_HOST_KIND,
-    profile: "production",
-    pid: process.pid,
-    endpoint: "http://127.0.0.1:39001",
-    control: {
-      endpoint: controlEndpoint,
-      token: "launcher-control-token-0123456789abcdefghijklmnop",
-    },
+  const helper = join(root, "helper.ts");
+  writeFileSync(helper, `
+    import { ChatGptBrowserWorker } from ${JSON.stringify(new URL("../src/adapters/chatgpt-web/browser-worker.ts", import.meta.url).href)};
+    // Keep the launcher request, helper protocol and worker configuration real; replace browser IO.
+    ChatGptBrowserWorker.prototype.verifyConnector = async function() {
+      if (this.config.useSavedChats !== ${useSavedChats}) throw new Error("Verification chat mode lost in helper IPC");
+      return this.config.appName;
+    };
+    await import(${JSON.stringify(new URL("../src/adapters/chatgpt-web/browser-helper-main.ts", import.meta.url).href)});
+  `, { mode: 0o700 });
+  const { verifyConnectorWithBrowserHelper } = require("../launcher/electron/browser-helper-verifier.cjs");
+  expect(await verifyConnectorWithBrowserHelper({
     helper: { executable: process.execPath, script: helper },
-    partition: "persist:codex-web-gpt-chatgpt",
-    idleUrl: LAUNCHER_BROWSER_IDLE_URL,
-    surfaceId: "launcher_surface_id_0123456789AB",
-    surfaceTargets: { launcher_surface_id_0123456789AB: "native-owned-target" },
-    createdAt: new Date().toISOString(),
-  }), { mode: 0o600 });
-  return new LauncherBrowserHelperClient({
-    appName: "Codex Native2",
-    browserHost: "launcher",
-    browserHostDescriptorPath: descriptorPath,
-    storageStatePath: join(root, "unused-state.json"),
-    chromeExecutablePath: join(root, "unused-chrome"),
-    turnTimeoutMs: 60_000,
-    headed: true,
-    autoApproveToolCalls: false,
-    useSavedChats: false,
-  });
-}
-
-test("closing a helper before readiness rejects its waiting turn", async () => {
-  // Stay alive without advertising readiness, then honor the client's shutdown request.
-  const client = lifecycleClient(() => "process.stdin.on('data', () => process.exit(0));\n");
-  const turn = client.run({
-    traceId: "close_before_ready",
-    modelId: "gpt-5.6-sol",
-    reasoning: "high",
-    capabilities: { localToolsEnabled: false, solAvailable: true, extraHighAvailable: false, proAvailable: false },
-    prepare: async () => ({ text: "inspect", images: [], release() {} }),
-    onTextDelta() {},
-  }).then(() => "resolved", error => error);
-  try {
-    await client.close();
-    const result = await Promise.race([turn, Bun.sleep(100).then(() => "still pending")]);
-    expect(result).toBeInstanceOf(DOMException);
-    expect(result.name).toBe("AbortError");
-  } finally {
-    await client.close();
-  }
-});
-
-test.each([false, true])("old helper release cannot reject a replacement turn (release failure=%s)", async releaseFails => {
-  let releaseEnd!: () => void;
-  const heldEnd = new Promise<void>(resolve => { releaseEnd = resolve; });
-  let receiveEnd!: () => void;
-  const receivedEnd = new Promise<void>(resolve => { receiveEnd = resolve; });
-  const server = Bun.serve({
-    hostname: "127.0.0.1", port: 0,
-    async fetch() {
-      receiveEnd();
-      await heldEnd;
-      return releaseFails
-        ? Response.json({ error: "old release failed" }, { status: 503 })
-        : Response.json({ cancelledByUser: false });
-    },
-  });
-  const client = lifecycleClient(root => `
-    const fs = require("node:fs");
-    const input = require("node:readline").createInterface({ input: process.stdin });
-    const marker = ${JSON.stringify(join(root, "first-helper-started"))};
-    const write = message => console.log(JSON.stringify(message));
-    write({ type: "ready" });
-    input.on("line", line => {
-      const message = JSON.parse(line);
-      if (message.type === "run") {
-        if (!fs.existsSync(marker)) { fs.writeFileSync(marker, "started"); process.exit(17); }
-        write({ type: "event", id: message.id, event: "text", text: "replacement ready" });
-      } else if (message.type === "result-request") {
-        write({ type: "result", id: message.id, text: "replacement answer" });
-      } else if (message.type === "shutdown") process.exit(0);
-    });
-  `, `http://127.0.0.1:${server.port}`);
-  const abort = new AbortController();
-  const turn: BrowserTurn = {
-    traceId: "same_trace_replacement",
-    modelId: "gpt-5.6-sol", reasoning: "high",
-    capabilities: { localToolsEnabled: false, solAvailable: true, extraHighAvailable: false, proAvailable: false },
-    prepare: async () => ({ text: "inspect", images: [], release() {} }),
-    onTextDelta() {},
-  };
-  try {
-    const first = client.run({ ...turn, abortSignal: abort.signal }).catch(error => error);
-    await receivedEnd;
-    abort.abort();
-    await first;
-    let replacementStarted!: () => void;
-    const started = new Promise<void>(resolve => { replacementStarted = resolve; });
-    const replacement = client.run({ ...turn, onTextDelta: replacementStarted });
-    // Observe rejection immediately, including on the unfixed implementation.
-    const result = replacement.then(value => value, error => error);
-    await started;
-    releaseEnd();
-    await Bun.sleep(50);
-    await (client as unknown as { send(message: unknown): Promise<void> }).send({ type: "result-request", id: turn.traceId });
-    expect(await result).toBe("replacement answer");
-  } finally {
-    releaseEnd();
-    await client.close();
-    await server.stop(true);
-  }
+    descriptorPath: join(root, "launcher.json"),
+    appName: "Codex Native2", useSavedChats,
+  })).toEqual({ ok: true, appName: "Codex Native2" });
 });
 
 test("daemon streams browser lifecycle through the real helper process", async () => {

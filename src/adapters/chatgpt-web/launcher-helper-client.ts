@@ -250,6 +250,7 @@ export class LauncherBrowserHelperClient {
                 ? { reason: "compaction_handoff_accepted" }
                 : {}),
             }).catch(error => {
+              if (this.pending.get(turn.traceId) !== pending) return;
               this.finishWithError(
                 turn.traceId,
                 error instanceof Error ? error : new Error(String(error)),
@@ -300,7 +301,10 @@ export class LauncherBrowserHelperClient {
           .then(() => {
             if (!progressForwarding.signal.aborted) this.forwardProgress(turn, progressForwarding.signal);
           })
-          .catch(error => this.finishWithError(turn.traceId, error instanceof Error ? error : new Error(String(error))));
+          .catch(error => {
+            if (this.pending.get(turn.traceId) !== pending) return;
+            this.finishWithError(turn.traceId, error instanceof Error ? error : new Error(String(error)));
+          });
       });
   }
 

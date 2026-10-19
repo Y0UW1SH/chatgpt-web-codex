@@ -1,12 +1,13 @@
 import { expect, test } from "bun:test";
 import { CHATGPT_WEB_AGENT_WAIT_POLL_MS, transportBoundRawExecProgram } from "../src/adapters/chatgpt-web/mcp-server";
 
-async function execute(input: string) {
+async function execute(input: string, serializeInput = false) {
   const calls: Array<{ name: string; input: unknown }> = [];
   const output: unknown[] = [];
   const tools = Object.fromEntries(["web__run", "collaboration__wait_agent", "exec"].map(name => [
     name,
     async (input: unknown) => {
+      if (serializeInput) input = JSON.parse(JSON.stringify(input));
       calls.push({ name, input });
       return { name, input };
     },
@@ -88,5 +89,29 @@ test("raw exec still rejects recursive raw exec before native dispatch", async (
   const execution = await execute("await tools.exec('text(\"nested\")');");
 
   await expect(execution.result).rejects.toThrow("Nested raw exec is unavailable");
+  expect(execution.calls).toEqual([]);
+});
+
+test("raw exec validates the same wait arguments that reach native serialization", async () => {
+  const execution = await execute(`
+    let reads = 0;
+    await tools.collaboration__wait_agent({
+      get timeout_ms() { return ++reads === 1 ? ${CHATGPT_WEB_AGENT_WAIT_POLL_MS} : 300000; }
+    });
+  `, true);
+  await execution.result;
+  expect(execution.calls).toEqual([{
+    name: "collaboration__wait_agent", input: { timeout_ms: CHATGPT_WEB_AGENT_WAIT_POLL_MS },
+  }]);
+});
+
+test("raw exec rejects a wait timeout changed by toJSON before native dispatch", async () => {
+  const execution = await execute(`
+    await tools.collaboration__wait_agent({
+      timeout_ms: ${CHATGPT_WEB_AGENT_WAIT_POLL_MS},
+      toJSON() { return { timeout_ms: 300000 }; }
+    });
+  `, true);
+  await expect(execution.result).rejects.toThrow(`requires timeout_ms=${CHATGPT_WEB_AGENT_WAIT_POLL_MS}`);
   expect(execution.calls).toEqual([]);
 });
