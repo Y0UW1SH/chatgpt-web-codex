@@ -269,6 +269,7 @@ test.skipIf(process.platform !== "darwin")("external service setup retains valid
     spyOn(browserLogin, "storedBrowserLoginCapabilities").mockReturnValue({ solAvailable: true, extraHighAvailable: false, proAvailable: false } as never),
     spyOn(service, "getServiceStatus").mockReturnValue({ installed: true, loaded: true } as never),
     spyOn(service, "assertServiceIdle").mockResolvedValue(undefined),
+    spyOn(service, "withServiceDrain").mockImplementation(async (_config, operation) => await operation()),
     spyOn(service, "installService").mockReturnValue({ installed: true, loaded: true } as never),
     spyOn(service, "restartService").mockResolvedValue({ installed: true, loaded: true } as never),
     spyOn(service, "removeLegacyRuntimeArtifacts").mockImplementation(() => {}),
@@ -301,3 +302,133 @@ test.skipIf(process.platform !== "darwin")("external service setup retains valid
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("terminal setup holds the current daemon drain until tunnel replacement is ready", async () => {
+  const root = mkdtempSync(join(tmpdir(), "codex-setup-held-drain-"));
+  const configPath = join(root, "config.json");
+  const key = join(root, "runtime.key");
+  writeFileSync(key, "fixture-runtime-key");
+  writeFileSync(configPath, "{}");
+  const existing = { ...configModule.defaultConfig("full"), subagentProtocol: "native" as const };
+  existing.tunnel = tunnel.createTunnelConfig({
+    binaryPath: process.execPath, runtimeKeyFile: key, tunnelId: `tunnel_${"a".repeat(32)}`,
+  });
+  let saved: configModule.AppConfig = existing;
+  let running: configModule.AppConfig = existing;
+  let accepting = true;
+  let connectFails = false;
+  const calls: string[] = [];
+  const checkDrained = (action: string) => {
+    expect(accepting).toBe(false);
+    calls.push(action);
+  };
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform")!;
+  const mocks = [
+    spyOn(configModule, "getConfigPath").mockReturnValue(configPath),
+    spyOn(configModule, "loadConfigForSetup").mockImplementation(() => structuredClone(running)),
+    spyOn(configModule, "saveConfig").mockImplementation(value => { saved = value; }),
+    spyOn(integration, "preflightCodexIntegration").mockImplementation(() => {}),
+    spyOn(integration, "installCodexIntegration").mockImplementation(() => ({} as never)),
+    spyOn(browserLogin, "browserLoginStateExists").mockReturnValue(true),
+    spyOn(browserLogin, "storedBrowserLoginCapabilities").mockReturnValue({ solAvailable: true, extraHighAvailable: false, proAvailable: false } as never),
+    spyOn(service, "getServiceStatus").mockReturnValue({ installed: true, loaded: true } as never),
+    spyOn(service, "installService").mockReturnValue({ installed: true, loaded: true } as never),
+    spyOn(service, "restartService").mockImplementation(async () => {
+      running = saved;
+      accepting = true;
+      return { installed: true, loaded: true } as never;
+    }),
+    spyOn(service, "removeLegacyRuntimeArtifacts").mockImplementation(() => {}),
+    spyOn(tunnelService, "getTunnelServiceStatus").mockReturnValue({ installed: true, loaded: true } as never),
+    spyOn(tunnelService, "tunnelServiceDefinitionMatches").mockReturnValue(false),
+    spyOn(tunnelService, "stopTunnelService").mockImplementation(async () => { checkDrained("stop service"); return {} as never; }),
+    spyOn(tunnelService, "installTunnelService").mockImplementation(() => { checkDrained("install service"); return {} as never; }),
+    spyOn(tunnel, "managedRuntimeKeyPath").mockReturnValue(key),
+    spyOn(tunnel, "installTunnelClient").mockResolvedValue(process.execPath),
+    spyOn(tunnel, "connectTunnel").mockImplementation(() => {
+      checkDrained("connect");
+      if (connectFails) throw new Error("fixture connect failure");
+    }),
+    spyOn(tunnel, "stopTunnel").mockImplementation(() => { checkDrained("stop runtime"); }),
+    spyOn(tunnel, "waitForTunnelReady").mockImplementation(async () => { checkDrained("ready"); return { ok: true } as never; }),
+    spyOn(globalThis, "fetch").mockImplementation((async (url, options) => {
+      const action = new URL(String(url)).pathname.split("/").at(-1);
+      if (action === "healthz") return Response.json({
+        service: "codex-chatgpt-web", status: "ok", mode: "full", version: running.releaseVersion, accepting_turns: accepting,
+      });
+      expect(new Headers(options?.headers).get("authorization")).toBe(`Bearer ${running.controlToken}`);
+      accepting = action === "resume";
+      return Response.json({ accepting_turns: accepting, active_http_turns: 0, active_browser_turns: 0 });
+    }) as typeof globalThis.fetch),
+  ];
+  Object.defineProperty(process, "platform", { ...originalPlatform, value: "darwin" });
+  try {
+    const options = { mode: "full" as const, subagentProtocol: "native" as const, restartService: true, acknowledgedUnofficial: true };
+    expect((await setup(options)).tunnelReady).toBe(true);
+    expect(calls).toEqual(["stop service", "connect", "ready", "stop runtime", "install service", "ready"]);
+    expect(accepting).toBe(true);
+    connectFails = true;
+    calls.length = 0;
+    await expect(setup(options)).rejects.toThrow("fixture connect failure");
+    expect(calls).toEqual(["stop service", "connect", "stop runtime"]);
+    expect(accepting).toBe(true);
+  } finally {
+    Object.defineProperty(process, "platform", originalPlatform);
+    for (const mock of mocks.reverse()) mock.mockRestore();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+for (const mode of ["full", "browser-only"] as const) {
+  test(`launcher ${mode} setup stops the legacy daemon before removing its MCP tunnel`, async () => {
+    const root = mkdtempSync(join(tmpdir(), "codex-launcher-migrate-drain-"));
+    const configPath = join(root, "config.json");
+    const key = join(root, "runtime.key");
+    writeFileSync(key, "fixture-runtime-key");
+    writeFileSync(configPath, "{}");
+    const existing = { ...configModule.defaultConfig("full"), subagentProtocol: "native" as const };
+    existing.tunnel = tunnel.createTunnelConfig({
+      binaryPath: process.execPath, runtimeKeyFile: key, tunnelId: `tunnel_${"a".repeat(32)}`,
+    });
+    let daemonLoaded = true;
+    const calls: string[] = [];
+    const mocks = [
+      spyOn(configModule, "getConfigPath").mockReturnValue(configPath),
+      spyOn(configModule, "loadConfigForSetup").mockImplementation(() => structuredClone(existing)),
+      spyOn(configModule, "saveConfig").mockImplementation(() => {}),
+      spyOn(integration, "preflightCodexIntegration").mockImplementation(() => {}),
+      spyOn(integration, "installCodexIntegration").mockImplementation(() => ({} as never)),
+      spyOn(browserHost, "inspectLauncherBrowserHost").mockResolvedValue({ solAvailable: true, extraHighAvailable: false, proAvailable: false } as never),
+      spyOn(service, "getServiceStatus").mockImplementation(() => ({ installed: true, loaded: daemonLoaded }) as never),
+      spyOn(service, "assertServiceIdle").mockResolvedValue(undefined),
+      spyOn(service, "uninstallService").mockImplementation(async () => {
+        daemonLoaded = false;
+        calls.push("stop daemon");
+        return {} as never;
+      }),
+      spyOn(service, "removeLegacyRuntimeArtifacts").mockImplementation(() => {}),
+      spyOn(tunnelService, "getTunnelServiceStatus").mockReturnValue({ installed: true, loaded: true } as never),
+      spyOn(tunnelService, "uninstallTunnelService").mockImplementation(async () => {
+        expect(daemonLoaded).toBe(false);
+        calls.push("stop tunnel service");
+        return {} as never;
+      }),
+      spyOn(tunnel, "stopTunnel").mockImplementation(() => {
+        expect(daemonLoaded).toBe(false);
+        calls.push("stop tunnel runtime");
+      }),
+      spyOn(tunnel, "managedRuntimeKeyPath").mockReturnValue(key),
+      spyOn(tunnel, "installTunnelClient").mockResolvedValue(process.execPath),
+    ];
+    try {
+      await setup({ mode, subagentProtocol: "native", restartService: true, acknowledgedUnofficial: true,
+        browserHostDescriptorPath: join(root, "launcher.json") });
+      expect(calls).toEqual(mode === "full"
+        ? ["stop daemon", "stop tunnel service"]
+        : ["stop daemon", "stop tunnel service", "stop tunnel runtime"]);
+    } finally {
+      for (const mock of mocks.reverse()) mock.mockRestore();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}

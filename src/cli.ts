@@ -24,7 +24,7 @@ import { formatDoctorReport, runDoctor } from "./doctor";
 import { runChatGptMcpMain } from "./adapters/chatgpt-web/mcp-main";
 import { runCommand } from "./process";
 import { startServer } from "./server";
-import { assertServiceIdle, cancelActiveTurns, getServiceStatus, installService, interruptActiveTurn, restartService, startService, stopService, uninstallService } from "./service";
+import { cancelActiveTurns, getServiceStatus, installService, interruptActiveTurn, restartService, startService, stopService, uninstallService, withServiceDrain } from "./service";
 import { existingFullSetupCredentials, preflightSetup, setup, type SetupOptions } from "./setup";
 import { installRuntimeKeyBytes, managedRuntimeKeyPath, stopTunnel, tunnelStatus, waitForTunnelReady } from "./tunnel";
 import { getTunnelServiceStatus, restartTunnelService, startTunnelService, stopTunnelService, uninstallTunnelService } from "./tunnel-service";
@@ -507,20 +507,21 @@ async function tunnelCommand(args: string[]): Promise<void> {
     return;
   }
   const config = loadConfig();
-  if (action === "start") startTunnelService();
-  else if (action === "restart") {
-    await assertServiceIdle(config);
-    await restartTunnelService();
-  }
-  else if (action === "stop") {
-    await assertServiceIdle(config);
-    await stopTunnelService();
-    stopTunnel(config);
-  }
-  else if (action !== "status") throw new Error(`Unknown tunnel action: ${action}`);
-  const status = action === "start" || action === "restart"
-    ? await waitForTunnelReady(config)
-    : tunnelStatus(config);
+  const run = async () => {
+    if (action === "start") startTunnelService();
+    else if (action === "restart") await restartTunnelService();
+    else if (action === "stop") {
+      await stopTunnelService();
+      stopTunnel(config);
+    }
+    else if (action !== "status") throw new Error(`Unknown tunnel action: ${action}`);
+    return action === "start" || action === "restart"
+      ? await waitForTunnelReady(config)
+      : tunnelStatus(config);
+  };
+  const status = action === "restart" || action === "stop"
+    ? await withServiceDrain(config, run)
+    : await run();
   const service = getTunnelServiceStatus();
   stdout.write(`${JSON.stringify({ service, runtime: status }, null, 2)}\n`);
   if (action !== "stop" && (!service.running || !status.ok)) process.exitCode = 1;
@@ -563,12 +564,11 @@ async function uninstallCommand(args: string[]): Promise<void> {
     throw new Error("Service exists but configuration is missing; refusing an unverifiable uninstall");
   }
   const launcherRuntimeStopped = config?.browserHost === "launcher" && launcherControl;
-  if (config && process.platform === "darwin" && !launcherRuntimeStopped) await assertServiceIdle(config);
+  if (config && process.platform === "darwin" && !launcherRuntimeStopped) await uninstallService(config);
   if (config?.mode === "full" && !launcherRuntimeStopped) {
     if (process.platform === "darwin") await uninstallTunnelService();
     stopTunnel(config);
   }
-  if (config && process.platform === "darwin" && !launcherRuntimeStopped) await uninstallService(config);
   uninstallCodexIntegration();
   if (!keepData) rmSync(getConfigDir(), { recursive: true, force: true });
   stdout.write(keepData ? "Uninstalled; private application data was preserved.\n" : "Uninstalled and removed private application data.\n");

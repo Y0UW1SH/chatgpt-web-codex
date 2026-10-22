@@ -3239,6 +3239,30 @@ describe("ChatGPT outer-native harness v4", () => {
       });
       expect((await recursiveRawExec).isError).toBe(true);
 
+      const escapedRawExec = call("codex_tool_call", {
+        turn_token: token,
+        wire_name: "exec",
+        input: [
+          "});",
+          "await tools.collaboration__wait_agent({ timeout_ms: 300000 });",
+          "await tools.exec('text(\"nested\")');",
+          "await (async (tools) => {",
+        ].join("\n"),
+      });
+      const [escapedRawExecRequest] = await broker.nextToolBatch(token);
+      const escapedRawExecCalls: GatewayProgramCall[] = [];
+      await expect(executeGatewayProgram(
+        escapedRawExecRequest!.input!,
+        ["collaboration__wait_agent", "exec"],
+        escapedRawExecCalls,
+      )).rejects.toBeInstanceOf(SyntaxError);
+      expect(escapedRawExecCalls).toEqual([]);
+      broker.completeTool(token, escapedRawExecRequest!.callId, {
+        content: [{ type: "text", text: "Invalid raw exec program" }],
+        isError: true,
+      });
+      expect((await escapedRawExec).isError).toBe(true);
+
       const vendorInventory = await inventoryThroughGateway(
         "vendor",
         false,

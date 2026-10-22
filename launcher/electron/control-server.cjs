@@ -87,12 +87,16 @@ class BrowserControlServer {
 
   descriptor() {
     if (!this.port) throw new Error("Browser control server is not started");
-    return { endpoint: `http://127.0.0.1:${this.port}`, token: this.token };
+    return { endpoint: `http://127.0.0.1:${this.port}`, token: this.token, identityPath: "/v1/identity" };
   }
 
   async handle(request, response) {
     if (!secureTokenMatches(this.token, request.headers.authorization)) {
       writeJson(response, 401, { error: "unauthorized" });
+      return;
+    }
+    if (request.method === "GET" && request.url === "/v1/identity") {
+      writeJson(response, 200, { kind: "codex-web-gpt-launcher", pid: process.pid });
       return;
     }
     const isTurn = request.url === "/v1/turn/start"

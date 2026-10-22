@@ -379,11 +379,14 @@ function execGatewayProgram(
  * as direct calls. The model still owns its JavaScript; only the tool registry it receives is a
  * transparent proxy whose native wait functions validate their transport-bound argument before dispatch.
  */
-function transportBoundRawExecProgram(input: string, blockedExecName: string): string {
+export function transportBoundRawExecProgram(input: string, blockedExecName: string): string {
   return [
-    "await (async (tools) => {",
-    input,
-    "})((() => {",
+    // Parse caller source as a separate function body, so closing braces cannot escape the
+    // guarded tools parameter and resolve the original registry in this program's scope.
+    "const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;",
+    // Function constructors do not inherit the native module's strict mode.
+    `const run = new AsyncFunction("tools", "ALL_TOOLS", "text", "image", "audio", "generatedImage", ${JSON.stringify('"use strict";\n' + input)});`,
+    "await run((() => {",
     "  const source = tools;",
     `  const waitNames = new Set(${JSON.stringify([...GATEWAY_AGENT_WAIT_TOOL_NAMES])});`,
     `  const blockedExecName = ${JSON.stringify(blockedExecName)};`,
@@ -401,10 +404,13 @@ function transportBoundRawExecProgram(input: string, blockedExecName: string): s
     "      exposed = () => { throw new Error(\"Nested raw exec is unavailable inside ChatGPT Web exec\"); };",
     "    } else if (typeof value === \"function\" && typeof name === \"string\" && waitNames.has(name)) {",
     "      exposed = args => {",
-    "        if (!args || typeof args !== \"object\" || Array.isArray(args) || args.timeout_ms !== pollMs) {",
+    // Snapshot the native JSON payload before validation. Getters and toJSON can change values
+    // between a property check and native transport serialization.
+    "        const stableArgs = args && typeof args === \"object\" && !Array.isArray(args) ? JSON.parse(JSON.stringify(args)) : args;",
+    "        if (!stableArgs || typeof stableArgs !== \"object\" || Array.isArray(stableArgs) || stableArgs.timeout_ms !== pollMs) {",
     "          throw new Error(\"ChatGPT Web wait_agent requires timeout_ms=\" + pollMs + \" so the shared MCP channel remains available to spawned Web agents\");",
     "        }",
-    "        return Reflect.apply(value, source, [args]);",
+    "        return Reflect.apply(value, source, [stableArgs]);",
     "      };",
     "    } else if (typeof value === \"function\") {",
     "      exposed = (...args) => Reflect.apply(value, source, args);",
@@ -427,7 +433,7 @@ function transportBoundRawExecProgram(input: string, blockedExecName: string): s
     "    getPrototypeOf: () => null,",
     "    preventExtensions: () => false,",
     "  });",
-    "})());",
+    "})(), ALL_TOOLS, text, image, audio, generatedImage);",
   ].join("\n");
 }
 

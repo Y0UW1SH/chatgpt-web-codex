@@ -16,8 +16,15 @@ export class AsyncEventQueue<T> implements AsyncIterable<T> {
     this.buffered.push(value);
   }
 
-  close(): void {
+  close(finalValue?: T): void {
     if (this.closed) return;
+    // Reserve one terminal value even after normal backlog capacity is exhausted.
+    // Otherwise a producer cannot report why it stopped to the consumer.
+    if (arguments.length > 0) {
+      const waiter = this.waiters.shift();
+      if (waiter) waiter({ value: finalValue as T, done: false });
+      else this.buffered.push(finalValue as T);
+    }
     this.closed = true;
     while (this.waiters.length > 0) this.waiters.shift()!({ value: undefined, done: true });
   }

@@ -22,4 +22,6 @@ function run(args: string[], cwd: string): void {
 
 run(["install", "--frozen-lockfile"], root);
 run(["install", "--frozen-lockfile"], launcher);
-run(["run", "dev"], launcher);
+run(["run", "scripts/build-browser-helper.ts"], root);
+run(["run", "build"], launcher);
+run(["run", "start"], launcher);
