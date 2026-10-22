@@ -1,3 +1,7 @@
+> **Maintaining this fork:** Follow the [safe upstream sync guide](docs/upstream-sync.md)
+> to preserve custom fixes when updating. It includes a reusable prompt and the
+> required review steps. Coding-agent instructions are in [AGENTS.md](AGENTS.md).
+
 <p align="center">
   <img src="assets/readme/hero.svg" width="960" alt="Switch to web models. Stay in Codex. Your ChatGPT plan. Your workflow. Maximum capabilities.">
 </p>
