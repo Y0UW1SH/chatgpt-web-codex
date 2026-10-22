@@ -1,3 +1,7 @@
+> **维护此 fork：** 请遵循[安全同步上游指南](docs/upstream-sync.md)，
+> 了解可复用的同步提示词、必须保留的自定义行为和必需的审查步骤。
+> 编码代理说明见 [AGENTS.md](AGENTS.md)。
+
 <p align="center">
   <img src="assets/readme/hero.svg" width="960" alt="切换到网页版模型，继续使用 Codex。你的 ChatGPT 订阅。你的工作流。充分发挥模型能力。">
 </p>
