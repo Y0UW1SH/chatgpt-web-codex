@@ -1,3 +1,7 @@
+> **이 포크 유지 관리:** [안전한 upstream 동기화 가이드](docs/upstream-sync.md)에서
+> 재사용할 동기화 프롬프트, 유지해야 할 사용자 지정 동작, 필수 검토 절차를 확인하세요.
+> 코딩 에이전트 지침은 [AGENTS.md](AGENTS.md)에 있습니다.
+
 <p align="center">
   <img src="assets/readme/hero.svg" width="960" alt="웹 모델로 전환해도, Codex는 그대로. 내 ChatGPT 플랜. 내 작업 흐름. 모델의 가능성을 최대한.">
 </p>

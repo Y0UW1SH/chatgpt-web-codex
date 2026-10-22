@@ -1,3 +1,7 @@
+> **このフォークの保守：** [安全な upstream 同期ガイド](docs/upstream-sync.md)には、
+> 再利用できる同期プロンプト、保持すべきカスタム動作、必要なレビュー手順があります。
+> コーディングエージェント向けの指示は [AGENTS.md](AGENTS.md) にあります。
+
 <p align="center">
   <img src="assets/readme/hero.svg" width="960" alt="Web モデルに切り替えても、Codex はそのまま。ChatGPT のプラン。いつものワークフロー。モデルの力を最大限に。">
 </p>
