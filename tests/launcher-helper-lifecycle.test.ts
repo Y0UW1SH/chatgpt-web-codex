@@ -43,7 +43,6 @@ function lifecycleClient(script: (root: string) => string, controlEndpoint = "ht
     turnTimeoutMs: 60_000,
     headed: true,
     autoApproveToolCalls: false,
-    useSavedChats: false,
   });
 }
 
