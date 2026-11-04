@@ -42,8 +42,54 @@ const jsonArgumentsSchema = z.record(z.string(), z.unknown()).default({});
 // Match Codex's default wait interval while returning before the MCP invocation deadline.
 export const CHATGPT_WEB_AGENT_WAIT_POLL_MS = 30_000;
 export const CHATGPT_WEB_COMMAND_POLL_MAX_MS = 60_000;
+export const CHATGPT_WEB_COMMAND_POLL_MIN_MS = 250;
 const COMMAND_POLL_TRANSPORT_RULE = `ChatGPT Web transport rule: write_stdin yield_time_ms must be at most ${CHATGPT_WEB_COMMAND_POLL_MAX_MS}. A running command returns partial output and its session_id; return after each poll and use a separate MCP call to poll again if needed. Longer waits are rejected before execution because they can exceed the MCP deadline.`;
 const AGENT_WAIT_TRANSPORT_RULE = `ChatGPT Web transport rule: wait for exactly ${CHATGPT_WEB_AGENT_WAIT_POLL_MS / 1_000} seconds per call, matching the Codex default, then release the MCP channel so spawned Web agents can use their own tools. A wait timeout is not task completion; check agent progress and wait again if needed. Keep the native tool's declared arguments.`;
+
+export interface TransportArgumentRules {
+  waitNames: string[];
+  waitPollMs: number;
+  waitError: string;
+  commandPollMinMs: number;
+  commandPollMaxMs: number;
+  commandPollError: string;
+}
+
+export const CHATGPT_WEB_TRANSPORT_ARGUMENT_RULES: TransportArgumentRules = {
+  waitNames: [...GATEWAY_AGENT_WAIT_TOOL_NAMES],
+  waitPollMs: CHATGPT_WEB_AGENT_WAIT_POLL_MS,
+  waitError: `ChatGPT Web wait_agent requires timeout_ms=${CHATGPT_WEB_AGENT_WAIT_POLL_MS}`
+    + " so the shared MCP channel remains available to spawned Web agents",
+  commandPollMinMs: CHATGPT_WEB_COMMAND_POLL_MIN_MS,
+  commandPollMaxMs: CHATGPT_WEB_COMMAND_POLL_MAX_MS,
+  commandPollError: COMMAND_POLL_TRANSPORT_RULE,
+};
+const TRANSPORT_GUARDED_TOOL_NAMES = [...GATEWAY_AGENT_WAIT_TOOL_NAMES, "write_stdin"];
+
+/**
+ * The single implementation of the ChatGPT Web transport argument rules. MCP validation calls it
+ * directly, and transportBoundRawExecProgram embeds its source so caller-authored JavaScript is
+ * checked by the same code. It runs inside Codex's JavaScript runtime and survives minification,
+ * so keep it self-contained: no closures, imports, helpers or nested functions.
+ */
+export function transportArgumentViolation(name: string, args: unknown, rules: TransportArgumentRules): string | null {
+  if (rules.waitNames.indexOf(name) !== -1) {
+    if (!args || typeof args !== "object" || Array.isArray(args)
+      || (args as { timeout_ms?: unknown }).timeout_ms !== rules.waitPollMs) return rules.waitError;
+    return null;
+  }
+  if (name === "write_stdin") {
+    const wait = args && typeof args === "object" ? (args as { yield_time_ms?: unknown }).yield_time_ms : undefined;
+    if (wait !== undefined && (typeof wait !== "number" || !Number.isInteger(wait)
+      || wait < rules.commandPollMinMs || wait > rules.commandPollMaxMs)) return rules.commandPollError;
+  }
+  return null;
+}
+
+function assertTransportArguments(name: string, args: Record<string, unknown>): void {
+  const violation = transportArgumentViolation(name, args, CHATGPT_WEB_TRANSPORT_ARGUMENT_RULES);
+  if (violation !== null) throw new Error(violation);
+}
 // The OpenAI tunnel currently owns a two-minute command-response deadline. The local MCP server
 // must settle first so an abandoned native tool call is returned as an MCP error instead of
 // letting the tunnel tear down and poison its long-lived stdio transport.
@@ -203,33 +249,12 @@ function browserToolParameters(tool: CodexTool): Record<string, unknown> {
 }
 
 function assertBrowserToolArguments(tool: CodexTool, args: Record<string, unknown>): void {
-  if (!tool.namespace && tool.name === "write_stdin") assertCommandPollArguments(args);
-  if (!isAgentWaitTool(tool)) return;
-  if (args.timeout_ms !== CHATGPT_WEB_AGENT_WAIT_POLL_MS) {
-    throw new Error(
-      `ChatGPT Web wait_agent requires timeout_ms=${CHATGPT_WEB_AGENT_WAIT_POLL_MS}`
-      + " so the shared MCP channel remains available to spawned Web agents",
-    );
-  }
+  // A namespaced wire name always contains "__", so it can never match bare write_stdin.
+  assertTransportArguments(wireName(tool), args);
 }
 
 function assertGatewayToolArguments(name: string, args: Record<string, unknown>): void {
-  if (name === "write_stdin") assertCommandPollArguments(args);
-  if (!isGatewayAgentWaitTool(name)) return;
-  if (args.timeout_ms !== CHATGPT_WEB_AGENT_WAIT_POLL_MS) {
-    throw new Error(
-      `ChatGPT Web wait_agent requires timeout_ms=${CHATGPT_WEB_AGENT_WAIT_POLL_MS}`
-      + " so the shared MCP channel remains available to spawned Web agents",
-    );
-  }
-}
-
-function assertCommandPollArguments(args: Record<string, unknown>): void {
-  const value = args.yield_time_ms;
-  if (value !== undefined && (typeof value !== "number" || !Number.isInteger(value)
-    || value < 250 || value > CHATGPT_WEB_COMMAND_POLL_MAX_MS)) {
-    throw new Error(COMMAND_POLL_TRANSPORT_RULE);
-  }
+  assertTransportArguments(name, args);
 }
 
 export function chatGptMcpInvocationTimeout(
@@ -413,11 +438,11 @@ export function transportBoundRawExecProgram(input: string, blockedExecName: str
     `const run = new AsyncFunction("tools", "ALL_TOOLS", "text", "image", "audio", "generatedImage", ${JSON.stringify('"use strict";\n' + input)});`,
     "await run((() => {",
     "  const source = tools;",
-    `  const waitNames = new Set(${JSON.stringify([...GATEWAY_AGENT_WAIT_TOOL_NAMES])});`,
+    `  const guardedNames = new Set(${JSON.stringify(TRANSPORT_GUARDED_TOOL_NAMES)});`,
     `  const blockedExecName = ${JSON.stringify(blockedExecName)};`,
-    `  const pollMs = ${CHATGPT_WEB_AGENT_WAIT_POLL_MS};`,
-    `  const commandPollMaxMs = ${CHATGPT_WEB_COMMAND_POLL_MAX_MS};`,
-    `  const commandPollRule = ${JSON.stringify(COMMAND_POLL_TRANSPORT_RULE)};`,
+    // Embed the same validator and rules that MCP calls use, so the two paths cannot drift.
+    `  const transportRules = ${JSON.stringify(CHATGPT_WEB_TRANSPORT_ARGUMENT_RULES)};`,
+    `  const transportArgumentViolation = ${transportArgumentViolation.toString()};`,
     "  const registryNames = new Set(Reflect.ownKeys(source));",
     "  if (typeof ALL_TOOLS !== \"undefined\" && Array.isArray(ALL_TOOLS)) {",
     "    for (const tool of ALL_TOOLS) if (typeof tool?.name === \"string\") registryNames.add(tool.name);",
@@ -429,23 +454,13 @@ export function transportBoundRawExecProgram(input: string, blockedExecName: str
     "    let exposed = value;",
     "    if (typeof value === \"function\" && name === blockedExecName) {",
     "      exposed = () => { throw new Error(\"Nested raw exec is unavailable inside ChatGPT Web exec\"); };",
-    "    } else if (typeof value === \"function\" && typeof name === \"string\" && waitNames.has(name)) {",
+    "    } else if (typeof value === \"function\" && typeof name === \"string\" && guardedNames.has(name)) {",
     "      exposed = args => {",
-    // Snapshot the native JSON payload before validation. Getters and toJSON can change values
-    // between a property check and native transport serialization.
+    // Validate and dispatch one JSON snapshot. Getters and toJSON can change values between a
+    // property check and native transport serialization.
     "        const stableArgs = args && typeof args === \"object\" && !Array.isArray(args) ? JSON.parse(JSON.stringify(args)) : args;",
-    "        if (!stableArgs || typeof stableArgs !== \"object\" || Array.isArray(stableArgs) || stableArgs.timeout_ms !== pollMs) {",
-    "          throw new Error(\"ChatGPT Web wait_agent requires timeout_ms=\" + pollMs + \" so the shared MCP channel remains available to spawned Web agents\");",
-    "        }",
-    "        return Reflect.apply(value, source, [stableArgs]);",
-    "      };",
-    "    } else if (typeof value === \"function\" && name === \"write_stdin\") {",
-    "      exposed = args => {",
-    // Validate and dispatch one JSON snapshot, as for wait_agent, so getters and toJSON cannot
-    // pass a short poll through validation and then serialize one past the MCP deadline.
-    "        const stableArgs = args && typeof args === \"object\" && !Array.isArray(args) ? JSON.parse(JSON.stringify(args)) : args;",
-    "        const wait = stableArgs?.yield_time_ms;",
-    "        if (wait !== undefined && (typeof wait !== \"number\" || !Number.isInteger(wait) || wait < 250 || wait > commandPollMaxMs)) throw new Error(commandPollRule);",
+    "        const violation = transportArgumentViolation(name, stableArgs, transportRules);",
+    "        if (violation !== null) throw new Error(violation);",
     "        return Reflect.apply(value, source, [stableArgs]);",
     "      };",
     "    } else if (typeof value === \"function\") {",
@@ -746,7 +761,7 @@ export async function runChatGptMcpServer(options: {
         ...turnReferenceInput(contract),
         session_id: z.number().int().nonnegative(),
         chars: z.string().max(1_000_000).optional(),
-        yield_time_ms: z.number().int().min(250).max(CHATGPT_WEB_COMMAND_POLL_MAX_MS).optional(),
+        yield_time_ms: z.number().int().min(CHATGPT_WEB_COMMAND_POLL_MIN_MS).max(CHATGPT_WEB_COMMAND_POLL_MAX_MS).optional(),
         max_output_tokens: z.number().int().min(1).max(1_000_000).optional(),
       },
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
