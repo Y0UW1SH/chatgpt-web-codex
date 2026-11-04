@@ -1,19 +1,22 @@
 > **Maintaining this fork:** Follow the [safe upstream sync guide](docs/upstream-sync.md)
 > to preserve custom fixes when updating. It includes a reusable prompt and the
 > required review steps. Coding-agent instructions are in [AGENTS.md](AGENTS.md).
+>
+> Downloads, install commands and the launcher's **Update** button use this fork's
+> [releases](https://github.com/Y0UW1SH/chatgpt-web-codex/releases), which include its custom fixes.
 
 <p align="center">
   <img src="assets/readme/hero.svg" width="960" alt="Switch to web models. Stay in Codex. Your ChatGPT plan. Your workflow. Maximum capabilities.">
 </p>
 
 <p align="center">
-  <a href="https://github.com/miuuyy/codex-chatgpt-web/releases/download/v6.1.17/codex-web-gpt-6.1.17-win-x64.exe"><img src="assets/readme/download-windows.svg" width="224" height="64" alt="Windows · x64"></a>&nbsp;
-  <a href="https://github.com/miuuyy/codex-chatgpt-web/releases/download/v6.1.17/codex-web-gpt-6.1.17-mac-arm64.dmg"><img src="assets/readme/download-macos.svg" width="224" height="64" alt="macOS · Apple silicon"></a>&nbsp;
-  <a href="https://github.com/miuuyy/codex-chatgpt-web/releases/download/v6.1.17/codex-web-gpt-6.1.17-linux-x64.AppImage"><img src="assets/readme/download-linux.svg" width="224" height="64" alt="Linux · x64"></a>
+  <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases/download/v6.1.17/codex-web-gpt-6.1.17-win-x64.exe"><img src="assets/readme/download-windows.svg" width="224" height="64" alt="Windows · x64"></a>&nbsp;
+  <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases/download/v6.1.17/codex-web-gpt-6.1.17-mac-arm64.dmg"><img src="assets/readme/download-macos.svg" width="224" height="64" alt="macOS · Apple silicon"></a>&nbsp;
+  <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases/download/v6.1.17/codex-web-gpt-6.1.17-linux-x64.AppImage"><img src="assets/readme/download-linux.svg" width="224" height="64" alt="Linux · x64"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/miuuyy/codex-chatgpt-web/releases/download/v6.1.17/codex-web-gpt-6.1.17-mac-x64.dmg">macOS Intel</a> · <a href="https://github.com/miuuyy/codex-chatgpt-web/releases/latest">All releases</a>
+  <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases/download/v6.1.17/codex-web-gpt-6.1.17-mac-x64.dmg">macOS Intel</a> · <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases/latest">All releases</a>
 </p>
 
 <p align="center">
@@ -25,7 +28,7 @@
 </p>
 
 <p align="center">
-  <a href="#get-started">Get started</a> · <a href="https://github.com/miuuyy/codex-chatgpt-web/releases">What’s new</a> · <a href="docs/architecture.md">Architecture</a> · <a href="TROUBLESHOOTING.md">Troubleshooting</a>
+  <a href="#get-started">Get started</a> · <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases">What’s new</a> · <a href="docs/architecture.md">Architecture</a> · <a href="TROUBLESHOOTING.md">Troubleshooting</a>
 </p>
 
 Use the ChatGPT Web models available on your account, including Pro, from Codex’s native model picker. Messages run through your signed-in ChatGPT Web session and are subject to the limits applied to that account. Keep the same interface, tasks, images, and streaming.
@@ -53,13 +56,13 @@ Quit the launcher before updating. These installers select the platform and arch
 **macOS / Linux**
 
 ```bash
-curl -fsSL https://github.com/miuuyy/codex-chatgpt-web/releases/latest/download/install-launcher.sh | sh
+curl -fsSL https://github.com/Y0UW1SH/chatgpt-web-codex/releases/latest/download/install-launcher.sh | sh
 ```
 
 **Windows PowerShell**
 
 ```powershell
-irm https://github.com/miuuyy/codex-chatgpt-web/releases/latest/download/install-launcher.ps1 | iex
+irm https://github.com/Y0UW1SH/chatgpt-web-codex/releases/latest/download/install-launcher.ps1 | iex
 ```
 
 </details>
@@ -180,8 +183,8 @@ and workspace policies; it does not bypass authentication or access controls.
 <a id="development"></a>
 
 ```bash
-git clone https://github.com/miuuyy/codex-chatgpt-web.git && \
-cd codex-chatgpt-web && \
+git clone https://github.com/Y0UW1SH/chatgpt-web-codex.git && \
+cd chatgpt-web-codex && \
 bun run app
 ```
 
@@ -213,6 +216,6 @@ bun run app:package
 
 ---
 
-[Troubleshooting](TROUBLESHOOTING.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE) · [CI](https://github.com/miuuyy/codex-chatgpt-web/actions/workflows/ci.yml)
+[Troubleshooting](TROUBLESHOOTING.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [MIT license](LICENSE) · [CI](https://github.com/Y0UW1SH/chatgpt-web-codex/actions/workflows/ci.yml)
 
 Also by me: <img src="assets/readme/persona-voice.svg" width="20" height="20" alt=""> [ChatGPT Persona Voice](https://github.com/miuuyy/ChatGPT-Persona-Voice) — local, near-real-time custom voices for ChatGPT and Codex.

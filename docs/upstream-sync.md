@@ -78,14 +78,27 @@ use the matching operating systems and the release-validation guide.
 - Test/build commands and results, including the untouched-upstream comparison.
 - Remaining advisories, failures, skipped/live tests, platform gaps, and risks.
 
-## Source sync versus the desktop Update button
+## Releases and the desktop Update button
 
-Merging source changes does not change the installed application. At the time this
-guide was added, the desktop updater in `launcher/electron/update.cjs` targets
-`miuuyy/codex-chatgpt-web` releases. Those binaries do not include fork-only changes.
-Check this setting again before updating. Use a build containing the reviewed fork
-changes; do not install an upstream binary over a fork build expecting those changes
-to survive. Supporting fork releases in the updater requires a separate change.
+Merging source changes does not change the installed application. The fork ships its
+own builds so that installed copies keep its fixes:
+
+- The launcher updater (`launcher/electron/update.cjs`), the installers
+  (`scripts/install.sh`, `scripts/install-launcher.sh`, `scripts/install-launcher.ps1`),
+  the README download and install links, and the package metadata use
+  `Y0UW1SH/chatgpt-web-codex` releases. `launcher/tests/fork-release-source.test.cjs`
+  fails if a sync restores an upstream release source. When upstream changes these
+  lines, keep upstream's new version numbers and this fork's repository.
+- Upstream binaries do not include fork-only changes. Do not install one over a fork
+  build expecting those changes to survive.
+- After a sync PR is merged, publish the fork release for that version: push the tag
+  `v<version>` (matching `package.json`) on the merged `main`.
+  `.github/workflows/release.yml` builds every platform and publishes to this
+  repository. Until the first fork release exists, the in-app update check reports an
+  error and the install commands have nothing to download.
+- Fork releases reuse upstream version numbers. A fork-only fix between syncs has no
+  free version number; ship it with the next sync release, or agree on a separate
+  version scheme before releasing it on its own.
 
 ## Enforcement is separate
 
