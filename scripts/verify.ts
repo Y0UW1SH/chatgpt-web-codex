@@ -19,8 +19,11 @@ async function run(args: string[]): Promise<void> {
 
 try {
   await run(["run", "check-version"]);
-  await run(["run", "audit"]);
-  await run(["run", "launcher:audit"]);
+  // CI audits in .github/workflows/audit.yml so a new advisory cannot hide build and test results.
+  if (process.env.VERIFY_SKIP_AUDIT !== "1") {
+    await run(["run", "audit"]);
+    await run(["run", "launcher:audit"]);
+  }
   // Electron now downloads its executable on first use. Do this before timed tests.
   await run(["run", "launcher/node_modules/electron/install.js"]);
   await run(["run", "typecheck"]);

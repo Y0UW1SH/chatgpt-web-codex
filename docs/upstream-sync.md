@@ -63,6 +63,9 @@ bun install --frozen-lockfile
 bun run verify
 ```
 
+In CI, the per-platform `verify` jobs set `VERIFY_SKIP_AUDIT=1`; the dependency audits
+run in `.github/workflows/audit.yml` on every PR, on `main`, and weekly, so a new
+advisory is reported separately instead of hiding build and test results. Locally,
 `verify` currently covers version consistency, dependency audits, root and launcher
 typechecks and tests, launcher and runtime builds, generated notices, and the
 relocated-runtime smoke test. It stops at the first failure. If that happens, record
@@ -111,7 +114,8 @@ own builds so that installed copies keep its fixes:
 
 `AGENTS.md` and this guide are saved instructions. GitHub's Sync fork button and
 tools that do not read them will not follow this procedure automatically. For
-enforcement, configure `main` to require PRs and appropriate CI checks and to block
-force pushes and deletion. Verify that Actions is enabled and required checks
+enforcement, configure `main` to require PRs and appropriate CI checks (including the
+`audit` job from `audit.yml`, now that audits no longer fail the platform jobs) and to
+block force pushes and deletion. Verify that Actions is enabled and required checks
 actually run. This documentation does not configure those controls or schedule
 automatic syncing.
