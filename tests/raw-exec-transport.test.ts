@@ -1,10 +1,14 @@
 import { expect, test } from "bun:test";
-import { CHATGPT_WEB_AGENT_WAIT_POLL_MS, transportBoundRawExecProgram } from "../src/adapters/chatgpt-web/mcp-server";
+import {
+  CHATGPT_WEB_AGENT_WAIT_POLL_MS,
+  CHATGPT_WEB_COMMAND_POLL_MAX_MS,
+  transportBoundRawExecProgram,
+} from "../src/adapters/chatgpt-web/mcp-server";
 
 async function execute(input: string, serializeInput = false) {
   const calls: Array<{ name: string; input: unknown }> = [];
   const output: unknown[] = [];
-  const tools = Object.fromEntries(["web__run", "collaboration__wait_agent", "exec"].map(name => [
+  const tools = Object.fromEntries(["web__run", "collaboration__wait_agent", "write_stdin", "exec"].map(name => [
     name,
     async (input: unknown) => {
       if (serializeInput) input = JSON.parse(JSON.stringify(input));
@@ -114,4 +118,42 @@ test("raw exec rejects a wait timeout changed by toJSON before native dispatch",
   `, true);
   await expect(execution.result).rejects.toThrow(`requires timeout_ms=${CHATGPT_WEB_AGENT_WAIT_POLL_MS}`);
   expect(execution.calls).toEqual([]);
+});
+
+test("raw exec validates the same write_stdin poll that reaches native serialization", async () => {
+  const execution = await execute(`
+    let reads = 0;
+    await tools.write_stdin({
+      session_id: 42,
+      get yield_time_ms() { return ++reads === 1 ? 1000 : 300000; }
+    });
+  `, true);
+  await execution.result;
+  expect(execution.calls).toEqual([{
+    name: "write_stdin", input: { session_id: 42, yield_time_ms: 1000 },
+  }]);
+});
+
+test("raw exec rejects a write_stdin poll changed by toJSON before native dispatch", async () => {
+  const execution = await execute(`
+    await tools.write_stdin({
+      session_id: 42,
+      yield_time_ms: 1000,
+      toJSON() { return { session_id: 42, yield_time_ms: 300000 }; }
+    });
+  `, true);
+  await expect(execution.result).rejects.toThrow(`yield_time_ms must be at most ${CHATGPT_WEB_COMMAND_POLL_MAX_MS}`);
+  expect(execution.calls).toEqual([]);
+});
+
+test("raw exec bounds write_stdin polls and preserves omitted waits", async () => {
+  const omitted = await execute("await tools.write_stdin({ session_id: 42, chars: '' });");
+  await omitted.result;
+  expect(omitted.calls).toEqual([{ name: "write_stdin", input: { session_id: 42, chars: "" } }]);
+
+  for (const wait of ["249", String(CHATGPT_WEB_COMMAND_POLL_MAX_MS + 1), "1.5", "'1000'"]) {
+    const rejected = await execute(`await tools.write_stdin({ session_id: 42, yield_time_ms: ${wait} });`);
+    await expect(rejected.result).rejects.toThrow(`yield_time_ms must be at most ${CHATGPT_WEB_COMMAND_POLL_MAX_MS}`);
+    expect(rejected.calls).toEqual([]);
+  }
 });

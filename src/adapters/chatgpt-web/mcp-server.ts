@@ -441,9 +441,12 @@ export function transportBoundRawExecProgram(input: string, blockedExecName: str
     "      };",
     "    } else if (typeof value === \"function\" && name === \"write_stdin\") {",
     "      exposed = args => {",
-    "        const wait = args?.yield_time_ms;",
+    // Validate and dispatch one JSON snapshot, as for wait_agent, so getters and toJSON cannot
+    // pass a short poll through validation and then serialize one past the MCP deadline.
+    "        const stableArgs = args && typeof args === \"object\" && !Array.isArray(args) ? JSON.parse(JSON.stringify(args)) : args;",
+    "        const wait = stableArgs?.yield_time_ms;",
     "        if (wait !== undefined && (typeof wait !== \"number\" || !Number.isInteger(wait) || wait < 250 || wait > commandPollMaxMs)) throw new Error(commandPollRule);",
-    "        return Reflect.apply(value, source, [args]);",
+    "        return Reflect.apply(value, source, [stableArgs]);",
     "      };",
     "    } else if (typeof value === \"function\") {",
     "      exposed = (...args) => Reflect.apply(value, source, args);",
