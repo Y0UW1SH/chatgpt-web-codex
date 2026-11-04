@@ -70,6 +70,13 @@ the failure and run the remaining applicable checks individually so later result
 are not mistaken for passes. Packaging and live integration checks are additional;
 use the matching operating systems and the release-validation guide.
 
+The launcher typecheck also type-checks the Electron main-process `.cjs` files against
+`launcher/electron-typecheck-baseline.json`. If merged upstream code adds a diagnostic,
+inspect it like any other failure. When it is a checker limitation rather than a bug,
+accept it with `node launcher/scripts/typecheck-electron.cjs --update` and say so in
+the sync PR. When upstream removes diagnostics, run the same command to tighten the
+baseline.
+
 ## What the sync PR must report
 
 - Original fork SHA, upstream SHA, proposed merge SHA, and recovery branch or tag.

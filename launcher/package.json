@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "bun run scripts/dev.cjs",
     "audit": "bun audit",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && node scripts/typecheck-electron.cjs",
     "build:renderer": "vite build",
     "build": "bun run typecheck && bun run build:renderer",
     "build:runtime": "bun run scripts/prepare-runtime.cjs",
