@@ -3333,6 +3333,7 @@ module.exports = {
   BrowserHost,
   BrowserTurnCancelledError,
   CHATGPT_VIEWPORT_CSS,
+  COMPOSER_SELECTOR,
   IDLE_BROWSER_URL,
   isChatGptCloudflareChallengeResponse,
   isNewChatUrl,
