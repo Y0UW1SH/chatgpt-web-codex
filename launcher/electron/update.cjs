@@ -32,6 +32,19 @@ function compareVersions(left, right) {
   for (const key of ["major", "minor", "patch"]) {
     if (a[key] !== b[key]) return a[key] > b[key] ? 1 : -1;
   }
+  // Fork releases: X.Y.Z-fork.N is upstream X.Y.Z plus fork-only fixes. It follows X.Y.Z and
+  // precedes X.Y.(Z+1); every other suffix remains a SemVer prerelease (docs/upstream-sync.md).
+  const forkRevision = version => {
+    const match = /^fork\.(\d+)$/.exec(version.prerelease || "");
+    return match ? Number(match[1]) : null;
+  };
+  const forkA = forkRevision(a);
+  const forkB = forkRevision(b);
+  if (forkA !== null || forkB !== null) {
+    if (forkA !== null && forkB !== null) return Math.sign(forkA - forkB);
+    if (forkA !== null) return 1;
+    return -1;
+  }
   if (a.prerelease === b.prerelease) return 0;
   if (a.prerelease === null) return 1;
   if (b.prerelease === null) return -1;
