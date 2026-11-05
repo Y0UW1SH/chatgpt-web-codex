@@ -1,1 +1,1 @@
-export const VERSION = "6.1.17-fork.1";
+export const VERSION = "6.1.17";
