@@ -2,7 +2,7 @@
 set -eu
 
 REPOSITORY="${CODEX_CHATGPT_WEB_REPOSITORY:-Y0UW1SH/chatgpt-web-codex}"
-VERSION="${CODEX_CHATGPT_WEB_VERSION:-6.1.17}"
+VERSION="${CODEX_CHATGPT_WEB_VERSION:-6.1.17-fork.1}"
 BIN_DIR="${CODEX_CHATGPT_WEB_BIN_DIR:-$HOME/.local/bin}"
 LIB_DIR="${CODEX_CHATGPT_WEB_LIB_DIR:-$HOME/.local/lib/codex-chatgpt-web}"
 DOC_DIR="${CODEX_CHATGPT_WEB_DOC_DIR:-$HOME/.local/share/doc/codex-chatgpt-web}"
