@@ -4,6 +4,7 @@
 >
 > 下载链接、安装命令和启动器的**更新**按钮使用此 fork 的
 > [发布版本](https://github.com/Y0UW1SH/chatgpt-web-codex/releases)，其中包含自定义修复。
+> 查看[此 fork 相比上游的改进](docs/fork-changes.md)。
 
 <p align="center">
   <img src="assets/readme/hero.svg" width="960" alt="切换到网页版模型，继续使用 Codex。你的 ChatGPT 订阅。你的工作流。充分发挥模型能力。">

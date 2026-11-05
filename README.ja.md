@@ -4,6 +4,7 @@
 >
 > ダウンロード、インストールコマンド、ランチャーの**更新**ボタンは、カスタム修正を含むこのフォークの
 > [リリース](https://github.com/Y0UW1SH/chatgpt-web-codex/releases)を使用します。
+> [このフォークの upstream からの改善点](docs/fork-changes.md)をご覧ください。
 
 <p align="center">
   <img src="assets/readme/hero.svg" width="960" alt="Web モデルに切り替えても、Codex はそのまま。ChatGPT のプラン。いつものワークフロー。モデルの力を最大限に。">
