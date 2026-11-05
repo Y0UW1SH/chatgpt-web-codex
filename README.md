@@ -4,6 +4,7 @@
 >
 > Downloads, install commands and the launcher's **Update** button use this fork's
 > [releases](https://github.com/Y0UW1SH/chatgpt-web-codex/releases), which include its custom fixes.
+> See [what this fork improves over upstream](docs/fork-changes.md).
 
 <p align="center">
   <img src="assets/readme/hero.svg" width="960" alt="Switch to web models. Stay in Codex. Your ChatGPT plan. Your workflow. Maximum capabilities.">

@@ -4,6 +4,7 @@
 >
 > 다운로드, 설치 명령, 런처의 **업데이트** 버튼은 사용자 지정 수정이 포함된 이 포크의
 > [릴리스](https://github.com/Y0UW1SH/chatgpt-web-codex/releases)를 사용합니다.
+> [이 포크가 upstream보다 개선된 점](docs/fork-changes.md)을 확인하세요.
 
 <p align="center">
   <img src="assets/readme/hero.svg" width="960" alt="웹 모델로 전환해도, Codex는 그대로. 내 ChatGPT 플랜. 내 작업 흐름. 모델의 가능성을 최대한.">

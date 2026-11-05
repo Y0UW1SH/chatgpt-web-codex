@@ -101,11 +101,14 @@ own builds so that installed copies keep its fixes:
   lines, keep upstream's new version numbers and this fork's repository.
 - Upstream binaries do not include fork-only changes. Do not install one over a fork
   build expecting those changes to survive.
-- After a sync PR is merged, publish the fork release for that version: push the tag
-  `v<version>` (matching `package.json`) on the merged `main`.
-  `.github/workflows/release.yml` builds every platform and publishes to this
-  repository. Until the first fork release exists, the in-app update check reports an
-  error and the install commands have nothing to download.
+- After a sync PR is merged, publish the fork release for that version: run
+  **Actions → Release → Run workflow** on `main`, or push the tag `v<version>` (matching
+  `package.json`) on the merged `main`. `.github/workflows/release.yml` builds every
+  platform, creates the tag if needed, and publishes to this repository. A manual run
+  refuses to reuse a tag that already names a different commit.
+- Put release-specific notes, such as upstream behavior changes users should know about,
+  in `docs/releases/v<version>.md`; they appear above GitHub's generated notes. Keep
+  [fork-changes.md](fork-changes.md) current when the fork adds or retires a change.
 - Fork releases reuse upstream version numbers. A fork-only fix between syncs has no
   free version number; ship it with the next sync release, or agree on a separate
   version scheme before releasing it on its own.
