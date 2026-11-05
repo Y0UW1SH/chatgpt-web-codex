@@ -9,7 +9,8 @@ const { validateReleaseAssetUrl } = require("../electron/update.cjs");
 const FORK = "Y0UW1SH/chatgpt-web-codex";
 const UPSTREAM = "miuuyy/codex-chatgpt-web";
 const repositoryRoot = path.resolve(__dirname, "..", "..");
-const read = relative => fs.readFileSync(path.join(repositoryRoot, relative), "utf8");
+// Windows checkouts may convert line endings to CRLF; the guarded content is line-ending independent.
+const read = relative => fs.readFileSync(path.join(repositoryRoot, relative), "utf8").replace(/\r\n/g, "\n");
 
 test("the launcher updater accepts only this fork's release assets", () => {
   const asset = "codex-web-gpt-9.9.9-linux-x64.AppImage";
