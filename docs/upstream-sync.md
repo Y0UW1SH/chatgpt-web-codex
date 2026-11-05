@@ -63,12 +63,22 @@ bun install --frozen-lockfile
 bun run verify
 ```
 
+In CI, the per-platform `verify` jobs set `VERIFY_SKIP_AUDIT=1`; the dependency audits
+run in `.github/workflows/audit.yml` on every PR, on `main`, and weekly, so a new
+advisory is reported separately instead of hiding build and test results. Locally,
 `verify` currently covers version consistency, dependency audits, root and launcher
 typechecks and tests, launcher and runtime builds, generated notices, and the
 relocated-runtime smoke test. It stops at the first failure. If that happens, record
 the failure and run the remaining applicable checks individually so later results
 are not mistaken for passes. Packaging and live integration checks are additional;
 use the matching operating systems and the release-validation guide.
+
+The launcher typecheck also type-checks the Electron main-process `.cjs` files against
+`launcher/electron-typecheck-baseline.json`. If merged upstream code adds a diagnostic,
+inspect it like any other failure. When it is a checker limitation rather than a bug,
+accept it with `node launcher/scripts/typecheck-electron.cjs --update` and say so in
+the sync PR. When upstream removes diagnostics, run the same command to tighten the
+baseline.
 
 ## What the sync PR must report
 
@@ -78,20 +88,34 @@ use the matching operating systems and the release-validation guide.
 - Test/build commands and results, including the untouched-upstream comparison.
 - Remaining advisories, failures, skipped/live tests, platform gaps, and risks.
 
-## Source sync versus the desktop Update button
+## Releases and the desktop Update button
 
-Merging source changes does not change the installed application. At the time this
-guide was added, the desktop updater in `launcher/electron/update.cjs` targets
-`miuuyy/codex-chatgpt-web` releases. Those binaries do not include fork-only changes.
-Check this setting again before updating. Use a build containing the reviewed fork
-changes; do not install an upstream binary over a fork build expecting those changes
-to survive. Supporting fork releases in the updater requires a separate change.
+Merging source changes does not change the installed application. The fork ships its
+own builds so that installed copies keep its fixes:
+
+- The launcher updater (`launcher/electron/update.cjs`), the installers
+  (`scripts/install.sh`, `scripts/install-launcher.sh`, `scripts/install-launcher.ps1`),
+  the README download and install links, and the package metadata use
+  `Y0UW1SH/chatgpt-web-codex` releases. `launcher/tests/fork-release-source.test.cjs`
+  fails if a sync restores an upstream release source. When upstream changes these
+  lines, keep upstream's new version numbers and this fork's repository.
+- Upstream binaries do not include fork-only changes. Do not install one over a fork
+  build expecting those changes to survive.
+- After a sync PR is merged, publish the fork release for that version: push the tag
+  `v<version>` (matching `package.json`) on the merged `main`.
+  `.github/workflows/release.yml` builds every platform and publishes to this
+  repository. Until the first fork release exists, the in-app update check reports an
+  error and the install commands have nothing to download.
+- Fork releases reuse upstream version numbers. A fork-only fix between syncs has no
+  free version number; ship it with the next sync release, or agree on a separate
+  version scheme before releasing it on its own.
 
 ## Enforcement is separate
 
 `AGENTS.md` and this guide are saved instructions. GitHub's Sync fork button and
 tools that do not read them will not follow this procedure automatically. For
-enforcement, configure `main` to require PRs and appropriate CI checks and to block
-force pushes and deletion. Verify that Actions is enabled and required checks
+enforcement, configure `main` to require PRs and appropriate CI checks (including the
+`audit` job from `audit.yml`, now that audits no longer fail the platform jobs) and to
+block force pushes and deletion. Verify that Actions is enabled and required checks
 actually run. This documentation does not configure those controls or schedule
 automatic syncing.

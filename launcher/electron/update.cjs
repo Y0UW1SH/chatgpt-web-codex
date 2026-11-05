@@ -5,7 +5,8 @@ const path = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 const { pipeline } = require("node:stream/promises");
 
-const REPOSITORY = "miuuyy/codex-chatgpt-web";
+// Fork release channel: upstream binaries do not contain this fork's fixes (docs/upstream-sync.md).
+const REPOSITORY = "Y0UW1SH/chatgpt-web-codex";
 const RELEASE_API_URL = `https://api.github.com/repos/${REPOSITORY}/releases/latest`;
 const USER_AGENT = "codex-web-gpt-launcher-updater";
 const MAX_REDIRECTS = 5;

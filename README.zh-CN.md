@@ -1,19 +1,22 @@
 > **维护此 fork：** 请遵循[安全同步上游指南](docs/upstream-sync.md)，
 > 了解可复用的同步提示词、必须保留的自定义行为和必需的审查步骤。
 > 编码代理说明见 [AGENTS.md](AGENTS.md)。
+>
+> 下载链接、安装命令和启动器的**更新**按钮使用此 fork 的
+> [发布版本](https://github.com/Y0UW1SH/chatgpt-web-codex/releases)，其中包含自定义修复。
 
 <p align="center">
   <img src="assets/readme/hero.svg" width="960" alt="切换到网页版模型，继续使用 Codex。你的 ChatGPT 订阅。你的工作流。充分发挥模型能力。">
 </p>
 
 <p align="center">
-  <a href="https://github.com/miuuyy/codex-chatgpt-web/releases/download/v6.1.13/codex-web-gpt-6.1.13-win-x64.exe"><img src="assets/readme/download-windows.svg" width="224" height="64" alt="Windows · x64"></a>&nbsp;
-  <a href="https://github.com/miuuyy/codex-chatgpt-web/releases/download/v6.1.13/codex-web-gpt-6.1.13-mac-arm64.dmg"><img src="assets/readme/download-macos.svg" width="224" height="64" alt="macOS · Apple silicon"></a>&nbsp;
-  <a href="https://github.com/miuuyy/codex-chatgpt-web/releases/download/v6.1.13/codex-web-gpt-6.1.13-linux-x64.AppImage"><img src="assets/readme/download-linux.svg" width="224" height="64" alt="Linux · x64"></a>
+  <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases/download/v6.1.17/codex-web-gpt-6.1.17-win-x64.exe"><img src="assets/readme/download-windows.svg" width="224" height="64" alt="Windows · x64"></a>&nbsp;
+  <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases/download/v6.1.17/codex-web-gpt-6.1.17-mac-arm64.dmg"><img src="assets/readme/download-macos.svg" width="224" height="64" alt="macOS · Apple silicon"></a>&nbsp;
+  <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases/download/v6.1.17/codex-web-gpt-6.1.17-linux-x64.AppImage"><img src="assets/readme/download-linux.svg" width="224" height="64" alt="Linux · x64"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/miuuyy/codex-chatgpt-web/releases/download/v6.1.13/codex-web-gpt-6.1.13-mac-x64.dmg">macOS Intel</a> · <a href="https://github.com/miuuyy/codex-chatgpt-web/releases/latest">所有版本</a>
+  <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases/download/v6.1.17/codex-web-gpt-6.1.17-mac-x64.dmg">macOS Intel</a> · <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases/latest">所有版本</a>
 </p>
 
 <p align="center">
@@ -25,10 +28,10 @@
 </p>
 
 <p align="center">
-  <a href="#get-started">开始使用</a> · <a href="https://github.com/miuuyy/codex-chatgpt-web/releases">更新内容</a> · <a href="docs/architecture.md">架构</a> · <a href="TROUBLESHOOTING.md">故障排除</a>
+  <a href="#get-started">开始使用</a> · <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases">更新内容</a> · <a href="docs/architecture.md">架构</a> · <a href="TROUBLESHOOTING.md">故障排除</a>
 </p>
 
-在 Codex 原生模型选择器中使用账户可用的 ChatGPT 网页版模型，包括 Pro。使用 ChatGPT 网页版的独立额度，不消耗 Work 或 Codex 额度。保留原有的界面、任务、图片和流式输出。
+在 Codex 原生模型选择器中使用账户可用的 ChatGPT 网页版模型，包括 Pro。消息通过已登录的 ChatGPT 网页会话发送，并受该账户适用的使用限制约束。保留原有的界面、任务、图片和流式输出。
 
 完整 harness 模式通过 MCP 将 ChatGPT 连接到当前任务的文件、终端、工具和审批流程。对话始终关联到你的 Codex 任务，上下文增长时也能继续工作。
 
@@ -53,13 +56,13 @@
 **macOS / Linux**
 
 ```bash
-curl -fsSL https://github.com/miuuyy/codex-chatgpt-web/releases/latest/download/install-launcher.sh | sh
+curl -fsSL https://github.com/Y0UW1SH/chatgpt-web-codex/releases/latest/download/install-launcher.sh | sh
 ```
 
 **Windows PowerShell**
 
 ```powershell
-irm https://github.com/miuuyy/codex-chatgpt-web/releases/latest/download/install-launcher.ps1 | iex
+irm https://github.com/Y0UW1SH/chatgpt-web-codex/releases/latest/download/install-launcher.ps1 | iex
 ```
 
 </details>
@@ -150,7 +153,7 @@ codex-chatgpt-web subagents native
 启用完整模式前，请阅读完整的[架构说明](docs/architecture.md)和
 [安全模型](docs/security-model.md)。安全漏洞请通过 [SECURITY.md](SECURITY.md) 报告。
 
-临时聊天是 [ChatGPT 隐私模式](https://help.openai.com/en/articles/8914046-temporary-chat-faq)，提示词仍由 OpenAI 处理。
+任务默认使用“临时聊天”，不会保留在 ChatGPT 历史记录中。可在设置中关闭此选项以使用普通聊天；如果连接器不可用，也请关闭此选项。提示词仍由 OpenAI 处理。
 
 验证范围：[发布验证](docs/release-validation.md)。
 
@@ -166,8 +169,8 @@ codex-chatgpt-web subagents native
 <a id="development"></a>
 
 ```bash
-git clone https://github.com/miuuyy/codex-chatgpt-web.git && \
-cd codex-chatgpt-web && \
+git clone https://github.com/Y0UW1SH/chatgpt-web-codex.git && \
+cd chatgpt-web-codex && \
 bun run app
 ```
 
@@ -199,6 +202,6 @@ bun run app:package
 
 ---
 
-[故障排除](TROUBLESHOOTING.md) · [安全](SECURITY.md) · [贡献](CONTRIBUTING.md) · [MIT 许可证](LICENSE) · [CI](https://github.com/miuuyy/codex-chatgpt-web/actions/workflows/ci.yml)
+[故障排除](TROUBLESHOOTING.md) · [安全](SECURITY.md) · [贡献](CONTRIBUTING.md) · [MIT 许可证](LICENSE) · [CI](https://github.com/Y0UW1SH/chatgpt-web-codex/actions/workflows/ci.yml)
 
 我的另一个项目：<img src="assets/readme/persona-voice.svg" width="20" height="20" alt=""> [ChatGPT Persona Voice](https://github.com/miuuyy/ChatGPT-Persona-Voice) — 为 ChatGPT 和 Codex 提供本地、近实时的自定义声音。

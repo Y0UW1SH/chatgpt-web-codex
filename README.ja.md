@@ -1,19 +1,22 @@
 > **このフォークの保守：** [安全な upstream 同期ガイド](docs/upstream-sync.md)には、
 > 再利用できる同期プロンプト、保持すべきカスタム動作、必要なレビュー手順があります。
 > コーディングエージェント向けの指示は [AGENTS.md](AGENTS.md) にあります。
+>
+> ダウンロード、インストールコマンド、ランチャーの**更新**ボタンは、カスタム修正を含むこのフォークの
+> [リリース](https://github.com/Y0UW1SH/chatgpt-web-codex/releases)を使用します。
 
 <p align="center">
   <img src="assets/readme/hero.svg" width="960" alt="Web モデルに切り替えても、Codex はそのまま。ChatGPT のプラン。いつものワークフロー。モデルの力を最大限に。">
 </p>
 
 <p align="center">
-  <a href="https://github.com/miuuyy/codex-chatgpt-web/releases/download/v6.1.13/codex-web-gpt-6.1.13-win-x64.exe"><img src="assets/readme/download-windows.svg" width="224" height="64" alt="Windows · x64"></a>&nbsp;
-  <a href="https://github.com/miuuyy/codex-chatgpt-web/releases/download/v6.1.13/codex-web-gpt-6.1.13-mac-arm64.dmg"><img src="assets/readme/download-macos.svg" width="224" height="64" alt="macOS · Apple silicon"></a>&nbsp;
-  <a href="https://github.com/miuuyy/codex-chatgpt-web/releases/download/v6.1.13/codex-web-gpt-6.1.13-linux-x64.AppImage"><img src="assets/readme/download-linux.svg" width="224" height="64" alt="Linux · x64"></a>
+  <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases/download/v6.1.17/codex-web-gpt-6.1.17-win-x64.exe"><img src="assets/readme/download-windows.svg" width="224" height="64" alt="Windows · x64"></a>&nbsp;
+  <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases/download/v6.1.17/codex-web-gpt-6.1.17-mac-arm64.dmg"><img src="assets/readme/download-macos.svg" width="224" height="64" alt="macOS · Apple silicon"></a>&nbsp;
+  <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases/download/v6.1.17/codex-web-gpt-6.1.17-linux-x64.AppImage"><img src="assets/readme/download-linux.svg" width="224" height="64" alt="Linux · x64"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/miuuyy/codex-chatgpt-web/releases/download/v6.1.13/codex-web-gpt-6.1.13-mac-x64.dmg">macOS Intel</a> · <a href="https://github.com/miuuyy/codex-chatgpt-web/releases/latest">すべてのリリース</a>
+  <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases/download/v6.1.17/codex-web-gpt-6.1.17-mac-x64.dmg">macOS Intel</a> · <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases/latest">すべてのリリース</a>
 </p>
 
 <p align="center">
@@ -25,10 +28,10 @@
 </p>
 
 <p align="center">
-  <a href="#get-started">使い始める</a> · <a href="https://github.com/miuuyy/codex-chatgpt-web/releases">更新内容</a> · <a href="docs/architecture.md">アーキテクチャ</a> · <a href="TROUBLESHOOTING.md">トラブルシューティング</a>
+  <a href="#get-started">使い始める</a> · <a href="https://github.com/Y0UW1SH/chatgpt-web-codex/releases">更新内容</a> · <a href="docs/architecture.md">アーキテクチャ</a> · <a href="TROUBLESHOOTING.md">トラブルシューティング</a>
 </p>
 
-アカウントで利用可能な Pro を含む ChatGPT Web モデルを、Codex のネイティブモデル選択画面から使えます。ChatGPT Web の独立した利用枠を使うため、Work や Codex の利用枠は消費しません。UI、タスク、画像、ストリーミングはそのままです。
+アカウントで利用可能な Pro を含む ChatGPT Web モデルを、Codex のネイティブモデル選択画面から使えます。メッセージはログイン済みの ChatGPT Web セッションを通じて送信され、そのアカウントに適用される利用制限に従います。UI、タスク、画像、ストリーミングはそのままです。
 
 Full ハーネスモードでは、MCP を通じて ChatGPT を現在のタスクのファイル、ターミナル、ツール、承認に接続します。会話は Codex タスクに紐付いたままなので、コンテキストが増えても作業を続けられます。
 
@@ -53,13 +56,13 @@ Full ハーネスモードでは、MCP を通じて ChatGPT を現在のタス�
 **macOS / Linux**
 
 ```bash
-curl -fsSL https://github.com/miuuyy/codex-chatgpt-web/releases/latest/download/install-launcher.sh | sh
+curl -fsSL https://github.com/Y0UW1SH/chatgpt-web-codex/releases/latest/download/install-launcher.sh | sh
 ```
 
 **Windows PowerShell**
 
 ```powershell
-irm https://github.com/miuuyy/codex-chatgpt-web/releases/latest/download/install-launcher.ps1 | iex
+irm https://github.com/Y0UW1SH/chatgpt-web-codex/releases/latest/download/install-launcher.ps1 | iex
 ```
 
 </details>
@@ -153,7 +156,7 @@ codex-chatgpt-web subagents native
 Full モードを有効にする前に、完全な[アーキテクチャ](docs/architecture.md)と
 [セキュリティモデル](docs/security-model.md)をお読みください。脆弱性は [SECURITY.md](SECURITY.md) から報告してください。
 
-一時チャットは [ChatGPT のプライバシーモード](https://help.openai.com/en/articles/8914046-temporary-chat-faq)です。プロンプトは引き続き OpenAI によって処理されます。
+タスクには初期設定で「一時チャット」を使い、ChatGPT の履歴に残しません。通常のチャットを使う場合やコネクタが使えない場合は、設定でオフにしてください。プロンプトは引き続き OpenAI によって処理されます。
 
 検証範囲：[リリース検証](docs/release-validation.md)。
 
@@ -169,8 +172,8 @@ Full モードを有効にする前に、完全な[アーキテクチャ](docs/a
 <a id="development"></a>
 
 ```bash
-git clone https://github.com/miuuyy/codex-chatgpt-web.git && \
-cd codex-chatgpt-web && \
+git clone https://github.com/Y0UW1SH/chatgpt-web-codex.git && \
+cd chatgpt-web-codex && \
 bun run app
 ```
 
@@ -202,6 +205,6 @@ bun run app:package
 
 ---
 
-[トラブルシューティング](TROUBLESHOOTING.md) · [セキュリティ](SECURITY.md) · [コントリビューション](CONTRIBUTING.md) · [MIT ライセンス](LICENSE) · [CI](https://github.com/miuuyy/codex-chatgpt-web/actions/workflows/ci.yml)
+[トラブルシューティング](TROUBLESHOOTING.md) · [セキュリティ](SECURITY.md) · [コントリビューション](CONTRIBUTING.md) · [MIT ライセンス](LICENSE) · [CI](https://github.com/Y0UW1SH/chatgpt-web-codex/actions/workflows/ci.yml)
 
 もう一つの自作アプリ：<img src="assets/readme/persona-voice.svg" width="20" height="20" alt=""> [ChatGPT Persona Voice](https://github.com/miuuyy/ChatGPT-Persona-Voice) — ChatGPT と Codex に、ローカルでほぼリアルタイムのカスタム音声を。
