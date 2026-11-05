@@ -109,9 +109,18 @@ own builds so that installed copies keep its fixes:
 - Put release-specific notes, such as upstream behavior changes users should know about,
   in `docs/releases/v<version>.md`; they appear above GitHub's generated notes. Keep
   [fork-changes.md](fork-changes.md) current when the fork adds or retires a change.
-- Fork releases reuse upstream version numbers. A fork-only fix between syncs has no
-  free version number; ship it with the next sync release, or agree on a separate
-  version scheme before releasing it on its own.
+- A sync release uses upstream's version, `X.Y.Z`. To ship fork-only fixes between
+  syncs, release `X.Y.Z-fork.N`: run `bun run scripts/fork-version.ts` to move to the
+  next revision (`6.1.17` → `6.1.17-fork.1` → `6.1.17-fork.2`) in every file
+  `check-version` verifies, merge that through a PR, then run the release. The
+  updater ranks `X.Y.Z-fork.N` above `X.Y.Z` and below upstream's next release, and
+  `release.yml` publishes it as a normal (not prerelease) release; other suffixes
+  remain prereleases.
+- When a sync conflicts on version lines (`X.Y.Z-fork.N` here, a newer `X.Y.Z` upstream),
+  take upstream's version. The sync release is newer than every earlier fork revision.
+- Launchers on v6.1.17, the first fork release, predate this ordering and treat
+  `6.1.17-fork.N` as older. They update normally to the next sync release, or can
+  install a fork revision manually once.
 
 ## Enforcement is separate
 

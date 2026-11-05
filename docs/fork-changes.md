@@ -68,6 +68,10 @@ these changes, so installing one over a fork build would remove them.
 *Test:* `launcher/tests/fork-release-source.test.cjs` fails if a sync points any of them back at
 upstream. Releases can be started from the Actions tab (**Release → Run workflow** on `main`).
 
+Fork-only fixes can ship between upstream syncs as `X.Y.Z-fork.N`, which the updater ranks above
+upstream `X.Y.Z` and below upstream's next release. `bun run scripts/fork-version.ts` sets the next
+revision everywhere. *Tests:* `launcher/tests/fork-version-order.test.cjs`, `tests/fork-version.test.ts`.
+
 ## Dependency security
 
 - vite 6.4.5 clears GHSA-8g5g-mxqh-grgj.
@@ -93,5 +97,6 @@ upstream. Releases can be started from the Actions tab (**Release → Run workfl
 ## Unchanged from upstream
 
 Models, routes, efforts, settings, and the ChatGPT browser automation are upstream's. Version
-numbers follow upstream releases. Upstream behavior changes, such as Temporary Chat becoming the
-default in v6.1.15, apply here too and are called out in this fork's release notes.
+numbers follow upstream releases, plus `-fork.N` for fork-only releases between syncs. Upstream
+behavior changes, such as Temporary Chat becoming the default in v6.1.15, apply here too and are
+called out in this fork's release notes.
